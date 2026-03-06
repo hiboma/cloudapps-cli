@@ -1,4 +1,4 @@
-# cloudapps
+# ☁️ cloudapps
 
 A CLI tool for the [Microsoft Defender for Cloud Apps REST API](https://learn.microsoft.com/en-us/defender-cloud-apps/api-introduction), written in Rust.
 
