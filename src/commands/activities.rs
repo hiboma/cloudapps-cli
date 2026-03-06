@@ -80,7 +80,9 @@ async fn list(
     };
 
     match output_format {
-        OutputFormat::Json | OutputFormat::JsonMinify => crate::output::json::print_json_data(&resp, raw, output_format.is_minify()),
+        OutputFormat::Json | OutputFormat::JsonMinify => {
+            crate::output::json::print_json_data(&resp, raw, output_format.is_minify())
+        }
         OutputFormat::Table => {
             print_activities_table(&resp);
             Ok(())
@@ -142,7 +144,9 @@ async fn fetch(
         .await?;
 
     match output_format {
-        OutputFormat::Json | OutputFormat::JsonMinify => crate::output::json::print_json_raw(&resp, output_format.is_minify()),
+        OutputFormat::Json | OutputFormat::JsonMinify => {
+            crate::output::json::print_json_raw(&resp, output_format.is_minify())
+        }
         OutputFormat::Table => {
             crate::output::json::print_json_raw(&resp, false)?;
             Ok(())

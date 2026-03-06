@@ -85,7 +85,11 @@ pub enum Commands {
         command: Option<files::FilesCommand>,
     },
     /// Manage IP address ranges (data enrichment)
-    #[command(name = "data-enrichment", subcommand_required = false, arg_required_else_help = true)]
+    #[command(
+        name = "data-enrichment",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
     DataEnrichment {
         #[command(subcommand)]
         command: Option<data_enrichment::DataEnrichmentCommand>,
