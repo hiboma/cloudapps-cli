@@ -9,7 +9,6 @@ use cloudapps::error::AppError;
 
 #[tokio::main]
 async fn main() {
-    dotenvy::dotenv().ok();
     let cli = Cli::parse();
 
     if let Err(e) = run(cli).await {
