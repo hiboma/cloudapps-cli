@@ -1,0 +1,26 @@
+[package]
+name = "cloudapps"
+version = "0.1.0"
+edition = "2024"
+description = "CLI tool for Microsoft Defender for Cloud Apps REST API"
+license = "MIT"
+repository = "https://github.com/hiboma/cloudapps-cli"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tabled = "0.17"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+
+[dev-dependencies]
+assert_cmd = "2"
+mockito = "1"
+predicates = "3"
+tempfile = "3"

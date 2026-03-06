@@ -1,0 +1,7 @@
+{
+  "_id": "entity-xxxx-1",
+  "entityType": "user",
+  "displayName": "user1@example.com",
+  "domain": "example.com",
+  "status": "Active"
+}

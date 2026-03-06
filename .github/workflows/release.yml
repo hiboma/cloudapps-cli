@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc97ebc # v1
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../cloudapps-${{ matrix.target }}.tar.gz cloudapps
+          cd ../../..
+
+      - name: Package (windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "target/${{ matrix.target }}/release/cloudapps.exe" -DestinationPath "cloudapps-${{ matrix.target }}.zip"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cloudapps-${{ matrix.target }}
+          path: cloudapps-${{ matrix.target }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          merge-multiple: true
+      - name: Create Release
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          files: cloudapps-*
+          generate_release_notes: true

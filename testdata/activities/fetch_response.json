@@ -1,0 +1,18 @@
+{
+  "_id": "act-xxxx-1",
+  "timestamp": 1700000000000,
+  "actionType": "LOGIN",
+  "appId": 11770,
+  "appName": "Microsoft 365",
+  "user": {
+    "userName": "user1@example.com"
+  },
+  "device": {
+    "type": "DESKTOP"
+  },
+  "location": {
+    "country": "US",
+    "city": "Seattle"
+  },
+  "ipAddress": "192.0.2.1"
+}

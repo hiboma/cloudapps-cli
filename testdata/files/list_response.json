@@ -1,0 +1,26 @@
+{
+  "total": 2,
+  "hasNext": false,
+  "data": [
+    {
+      "_id": "file-xxxx-1",
+      "fileName": "report-2024.xlsx",
+      "fileType": "document",
+      "sharing": "Private",
+      "ownerName": "user1@example.com",
+      "modifiedDate": 1700000000000,
+      "createdDate": 1699900000000,
+      "extension": "xlsx"
+    },
+    {
+      "_id": "file-xxxx-2",
+      "fileName": "presentation.pptx",
+      "fileType": "document",
+      "sharing": "Public",
+      "ownerName": "user2@example.com",
+      "modifiedDate": 1700003600000,
+      "createdDate": 1699990000000,
+      "extension": "pptx"
+    }
+  ]
+}

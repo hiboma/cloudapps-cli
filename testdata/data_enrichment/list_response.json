@@ -1,0 +1,60 @@
+{
+  "total": 2,
+  "hasNext": false,
+  "data": [
+    {
+      "_id": "subnet-xxxx-1",
+      "name": "Headquarters",
+      "subnets": [
+        {
+          "originalString": "192.0.2.0/24",
+          "mask": 24,
+          "address": "192.0.2.0"
+        }
+      ],
+      "location": {
+        "name": "Seattle",
+        "latitude": 47.6062,
+        "longitude": -122.3321,
+        "countryCode": "US",
+        "countryName": "United States"
+      },
+      "organization": "Example Corp",
+      "tags": [
+        {
+          "id": "tag-001",
+          "name": "Corporate"
+        }
+      ],
+      "category": 1,
+      "lastModified": 1700000000000
+    },
+    {
+      "_id": "subnet-xxxx-2",
+      "name": "Branch Office",
+      "subnets": [
+        {
+          "originalString": "198.51.100.0/24",
+          "mask": 24,
+          "address": "198.51.100.0"
+        }
+      ],
+      "location": {
+        "name": "Tokyo",
+        "latitude": 35.6762,
+        "longitude": 139.6503,
+        "countryCode": "JP",
+        "countryName": "Japan"
+      },
+      "organization": "Example Corp",
+      "tags": [
+        {
+          "id": "tag-002",
+          "name": "Branch"
+        }
+      ],
+      "category": 1,
+      "lastModified": 1700003600000
+    }
+  ]
+}

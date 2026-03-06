@@ -1,0 +1,25 @@
+{
+  "_id": "alert-xxxx-1",
+  "timestamp": 1700000000000,
+  "title": "Impossible travel activity",
+  "description": "user1@example.com performed login from two distant locations within a short time period.",
+  "entities": [
+    {
+      "type": "account",
+      "label": "user1@example.com"
+    }
+  ],
+  "statusValue": 0,
+  "severityValue": 2,
+  "resolutionStatusValue": 0,
+  "stories": [],
+  "evidence": [
+    {
+      "title": "Impossible travel",
+      "createdTime": 1700000000000
+    }
+  ],
+  "intent": [
+    "InitialAccess"
+  ]
+}

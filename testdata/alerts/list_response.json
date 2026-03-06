@@ -1,0 +1,56 @@
+{
+  "total": 2,
+  "hasNext": false,
+  "data": [
+    {
+      "_id": "alert-xxxx-1",
+      "timestamp": 1700000000000,
+      "title": "Impossible travel activity",
+      "description": "user1@example.com performed login from two distant locations within a short time period.",
+      "entities": [
+        {
+          "type": "account",
+          "label": "user1@example.com"
+        }
+      ],
+      "statusValue": 0,
+      "severityValue": 2,
+      "resolutionStatusValue": 0,
+      "stories": [],
+      "evidence": [
+        {
+          "title": "Impossible travel",
+          "createdTime": 1700000000000
+        }
+      ],
+      "intent": [
+        "InitialAccess"
+      ]
+    },
+    {
+      "_id": "alert-xxxx-2",
+      "timestamp": 1700003600000,
+      "title": "Mass download by a single user",
+      "description": "user2@example.com downloaded an unusually large number of files.",
+      "entities": [
+        {
+          "type": "account",
+          "label": "user2@example.com"
+        }
+      ],
+      "statusValue": 1,
+      "severityValue": 5,
+      "resolutionStatusValue": 1,
+      "stories": [],
+      "evidence": [
+        {
+          "title": "Mass download",
+          "createdTime": 1700003600000
+        }
+      ],
+      "intent": [
+        "Exfiltration"
+      ]
+    }
+  ]
+}

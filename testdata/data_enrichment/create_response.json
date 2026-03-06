@@ -1,0 +1,27 @@
+{
+  "_id": "subnet-xxxx-3",
+  "name": "VPN Gateway",
+  "subnets": [
+    {
+      "originalString": "203.0.113.0/24",
+      "mask": 24,
+      "address": "203.0.113.0"
+    }
+  ],
+  "location": {
+    "name": "London",
+    "latitude": 51.5074,
+    "longitude": -0.1278,
+    "countryCode": "GB",
+    "countryName": "United Kingdom"
+  },
+  "organization": "Example Corp",
+  "tags": [
+    {
+      "id": "tag-003",
+      "name": "VPN"
+    }
+  ],
+  "category": 2,
+  "lastModified": 1700007200000
+}

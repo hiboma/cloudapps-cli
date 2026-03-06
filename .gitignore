@@ -1,0 +1,39 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# API tokens and credentials
+secrets/
+credentials.json
+token.json
+*.token
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary files
+/tmp/
+/log
+
+# Debug
+*.dSYM/

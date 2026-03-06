@@ -1,0 +1,20 @@
+{
+  "total": 2,
+  "hasNext": false,
+  "data": [
+    {
+      "_id": "entity-xxxx-1",
+      "entityType": "user",
+      "displayName": "user1@example.com",
+      "domain": "example.com",
+      "status": "Active"
+    },
+    {
+      "_id": "entity-xxxx-2",
+      "entityType": "user",
+      "displayName": "user2@example.com",
+      "domain": "example.com",
+      "status": "Active"
+    }
+  ]
+}
