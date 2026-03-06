@@ -1,7 +1,6 @@
 use crate::cli::Commands;
 
-pub const ACTIVITIES_HELP: &str =
-    include_str!("../docs/specifications/04-resources-activities.md");
+pub const ACTIVITIES_HELP: &str = include_str!("../docs/specifications/04-resources-activities.md");
 pub const ALERTS_HELP: &str = include_str!("../docs/specifications/05-resources-alerts.md");
 pub const ENTITIES_HELP: &str = include_str!("../docs/specifications/06-resources-entities.md");
 pub const FILES_HELP: &str = include_str!("../docs/specifications/07-resources-files.md");

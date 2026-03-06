@@ -55,7 +55,9 @@ async fn list(
     let resp: serde_json::Value = client.get("/api/subnet/").await?.json().await?;
 
     match output_format {
-        OutputFormat::Json | OutputFormat::JsonMinify => crate::output::json::print_json_data(&resp, raw, output_format.is_minify()),
+        OutputFormat::Json | OutputFormat::JsonMinify => {
+            crate::output::json::print_json_data(&resp, raw, output_format.is_minify())
+        }
         OutputFormat::Table => {
             print_data_enrichment_table(&resp);
             Ok(())

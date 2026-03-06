@@ -61,19 +61,21 @@ async fn run(cli: Cli) -> Result<(), AppError> {
     let client = CloudAppsClient::new(api_url, Box::new(auth))?;
 
     match &command {
-        Commands::Activities { command: Some(command) } => {
-            cloudapps::commands::activities::handle(&client, command, cli.output, cli.raw).await
-        }
-        Commands::Alerts { command: Some(command) } => {
-            cloudapps::commands::alerts::handle(&client, command, cli.output, cli.raw).await
-        }
-        Commands::Entities { command: Some(command) } => {
-            cloudapps::commands::entities::handle(&client, command, cli.output, cli.raw).await
-        }
-        Commands::Files { command: Some(command) } => {
-            cloudapps::commands::files::handle(&client, command, cli.output, cli.raw).await
-        }
-        Commands::DataEnrichment { command: Some(command) } => {
+        Commands::Activities {
+            command: Some(command),
+        } => cloudapps::commands::activities::handle(&client, command, cli.output, cli.raw).await,
+        Commands::Alerts {
+            command: Some(command),
+        } => cloudapps::commands::alerts::handle(&client, command, cli.output, cli.raw).await,
+        Commands::Entities {
+            command: Some(command),
+        } => cloudapps::commands::entities::handle(&client, command, cli.output, cli.raw).await,
+        Commands::Files {
+            command: Some(command),
+        } => cloudapps::commands::files::handle(&client, command, cli.output, cli.raw).await,
+        Commands::DataEnrichment {
+            command: Some(command),
+        } => {
             cloudapps::commands::data_enrichment::handle(&client, command, cli.output, cli.raw)
                 .await
         }
