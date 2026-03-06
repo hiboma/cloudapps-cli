@@ -5,73 +5,118 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            archive: tar.gz
+            cross: false
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            archive: tar.gz
+            cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
-            archive: tar.gz
+            cross: false
           - target: aarch64-apple-darwin
             os: macos-latest
-            archive: tar.gz
+            cross: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive: zip
+            cross: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc97ebc # v1
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@f0deed1e0edfc6a9be95417288c0e1099b1eeec3 # v2.7.7
+        with:
+          key: ${{ matrix.target }}
 
-      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --locked
+
+      - name: Build (cross)
+        if: matrix.cross
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: cross build --release --target "${BUILD_TARGET}"
+
+      - name: Build (native)
+        if: "!matrix.cross"
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: cargo build --release --target "${BUILD_TARGET}"
 
       - name: Package (unix)
-        if: matrix.archive == 'tar.gz'
+        if: runner.os != 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../cloudapps-${{ matrix.target }}.tar.gz cloudapps
-          cd ../../..
+          ARCHIVE_NAME="cloudapps-${TARGET}"
+          mkdir "${ARCHIVE_NAME}"
+          cp "target/${TARGET}/release/cloudapps" "${ARCHIVE_NAME}/"
+          cp LICENSE README.md "${ARCHIVE_NAME}/"
+          tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
 
       - name: Package (windows)
-        if: matrix.archive == 'zip'
+        if: runner.os == 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
         shell: pwsh
         run: |
-          Compress-Archive -Path "target/${{ matrix.target }}/release/cloudapps.exe" -DestinationPath "cloudapps-${{ matrix.target }}.zip"
+          $archiveName = "cloudapps-${env:TARGET}"
+          New-Item -ItemType Directory -Path $archiveName
+          Copy-Item "target\${env:TARGET}\release\cloudapps.exe" $archiveName
+          Copy-Item LICENSE, README.md $archiveName
+          Compress-Archive -Path $archiveName -DestinationPath "${archiveName}.zip"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Upload artifact (unix)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cloudapps-${{ matrix.target }}
-          path: cloudapps-${{ matrix.target }}.*
+          path: cloudapps-${{ matrix.target }}.tar.gz
+
+      - name: Upload artifact (windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cloudapps-${{ matrix.target }}
+          path: cloudapps-${{ matrix.target }}.zip
 
   release:
     needs: build
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          merge-multiple: true
+          path: artifacts
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec mv {} . \;
+          sha256sum *.tar.gz *.zip > sha256sums.txt
+
       - name: Create Release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
-          files: cloudapps-*
           generate_release_notes: true
+          files: |
+            artifacts/cloudapps-*.tar.gz
+            artifacts/cloudapps-*.zip
+            artifacts/sha256sums.txt
