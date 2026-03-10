@@ -4,7 +4,7 @@ use std::process;
 use cloudapps::auth::token::TokenAuth;
 use cloudapps::cli::{Cli, Commands};
 use cloudapps::client::CloudAppsClient;
-use cloudapps::config::{Config, resolve_value};
+use cloudapps::config::resolve_value;
 use cloudapps::error::AppError;
 
 #[tokio::main]
@@ -32,28 +32,12 @@ async fn run(cli: Cli) -> Result<(), AppError> {
         return Ok(());
     }
 
-    let config = Config::load().unwrap_or_default();
-
-    let api_url = resolve_value(
-        cli.api_url.as_deref(),
-        "CLOUDAPPS_API_URL",
-        config.api.url.as_deref(),
-    )
-    .ok_or_else(|| {
-        AppError::Config(
-            "API URL not set. Use --api-url, CLOUDAPPS_API_URL, or config file.".to_string(),
-        )
+    let api_url = resolve_value(cli.api_url.as_deref(), "CLOUDAPPS_API_URL").ok_or_else(|| {
+        AppError::Config("API URL not set. Use --api-url or CLOUDAPPS_API_URL.".to_string())
     })?;
 
-    let token = resolve_value(
-        cli.token.as_deref(),
-        "CLOUDAPPS_API_TOKEN",
-        config.auth.token.as_deref(),
-    )
-    .ok_or_else(|| {
-        AppError::Auth(
-            "API token not set. Use --token, CLOUDAPPS_API_TOKEN, or config file.".to_string(),
-        )
+    let token = resolve_value(cli.token.as_deref(), "CLOUDAPPS_API_TOKEN").ok_or_else(|| {
+        AppError::Auth("API token not set. Use --token or CLOUDAPPS_API_TOKEN.".to_string())
     })?;
 
     let auth = TokenAuth::new(token)?;
