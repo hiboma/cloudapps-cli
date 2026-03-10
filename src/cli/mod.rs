@@ -5,17 +5,8 @@ pub mod entities;
 pub mod files;
 
 use clap::{Parser, Subcommand};
-use std::env;
 
 use crate::output::OutputFormat;
-
-fn token_help() -> String {
-    if env::var("CLOUDAPPS_API_TOKEN").is_ok() {
-        "API token [env: CLOUDAPPS_API_TOKEN=****]".to_string()
-    } else {
-        "API token [env: CLOUDAPPS_API_TOKEN=]".to_string()
-    }
-}
 
 #[derive(Parser)]
 #[command(
@@ -32,9 +23,6 @@ pub struct Cli {
     /// API base URL
     #[arg(long, env = "CLOUDAPPS_API_URL", global = true)]
     pub api_url: Option<String>,
-
-    #[arg(long, env = "CLOUDAPPS_API_TOKEN", global = true, hide_env = true, help = token_help())]
-    pub token: Option<String>,
 
     /// Output format
     #[arg(
