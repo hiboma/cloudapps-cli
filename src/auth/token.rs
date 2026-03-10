@@ -9,8 +9,7 @@ impl TokenAuth {
     pub fn new(token: String) -> Result<Self, AppError> {
         if token.is_empty() {
             return Err(AppError::Auth(
-                "API token is empty. Set CLOUDAPPS_API_TOKEN environment variable."
-                    .to_string(),
+                "API token is empty. Set CLOUDAPPS_API_TOKEN environment variable.".to_string(),
             ));
         }
         Ok(Self { token })

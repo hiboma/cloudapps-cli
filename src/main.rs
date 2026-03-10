@@ -37,7 +37,9 @@ async fn run(cli: Cli) -> Result<(), AppError> {
     })?;
 
     let token = std::env::var("CLOUDAPPS_API_TOKEN").map_err(|_| {
-        AppError::Auth("API token not set. Set CLOUDAPPS_API_TOKEN environment variable.".to_string())
+        AppError::Auth(
+            "API token not set. Set CLOUDAPPS_API_TOKEN environment variable.".to_string(),
+        )
     })?;
 
     let auth = TokenAuth::new(token)?;
