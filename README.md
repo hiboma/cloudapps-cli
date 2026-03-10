@@ -30,23 +30,13 @@ cargo install --git https://github.com/hiboma/cloudapps-cli.git
 
 ### API Token
 
-Set your API token via environment variable or configuration file.
+Set your API token via environment variable or CLI options.
 
 **Environment variable:**
 
 ```bash
-export CLOUDAPPS_TOKEN="your-api-token"
+export CLOUDAPPS_API_TOKEN="your-api-token"
 export CLOUDAPPS_API_URL="https://your-tenant.us3.portal.cloudappsecurity.com"
-```
-
-**Configuration file** (`~/.config/cloudapps/config.toml`):
-
-```toml
-[auth]
-token = "your-api-token"
-
-[api]
-base_url = "https://your-tenant.us3.portal.cloudappsecurity.com"
 ```
 
 **CLI options** (highest priority):
@@ -55,7 +45,7 @@ base_url = "https://your-tenant.us3.portal.cloudappsecurity.com"
 cloudapps --token "your-api-token" --api-url "https://..." alerts list
 ```
 
-Priority order: CLI options > environment variables > configuration file.
+Priority order: CLI options > environment variables.
 
 ## Usage
 
