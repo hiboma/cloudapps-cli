@@ -39,13 +39,13 @@ export CLOUDAPPS_API_TOKEN="your-api-token"
 export CLOUDAPPS_API_URL="https://your-tenant.us3.portal.cloudappsecurity.com"
 ```
 
-**CLI options** (highest priority):
+**CLI options:**
 
 ```bash
-cloudapps --token "your-api-token" --api-url "https://..." alerts list
+cloudapps --api-url "https://..." alerts list
 ```
 
-Priority order: CLI options > environment variables.
+Priority order for API URL: CLI option > environment variable.
 
 ## Usage
 
@@ -150,7 +150,7 @@ cloudapps data-enrichment delete <id>
 | Option | Environment Variable | Description |
 |--------|---------------------|-------------|
 | `--api-url` | `CLOUDAPPS_API_URL` | API base URL |
-| `--token` | `CLOUDAPPS_TOKEN` | API token |
+| - | `CLOUDAPPS_API_TOKEN` | API token |
 | `--output` | - | Output format: `json` (default), `table` |
 | `--verbose` | - | Enable verbose output |
 
