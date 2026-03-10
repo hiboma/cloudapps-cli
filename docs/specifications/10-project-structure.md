@@ -91,7 +91,7 @@ cloudapps-cli/
 | `cli`      | Command-line argument parsing with clap derive macros    |
 | `client`   | HTTP communication, request building, response parsing   |
 | `auth`     | Authentication token management                          |
-| `config`   | Configuration file loading and validation                |
+| `config`   | Value resolution (CLI options and environment variables)  |
 | `models`   | Data structures for API request/response types           |
 | `output`   | Output formatting (JSON, table)                          |
 | `commands` | Business logic connecting CLI input to API calls         |
@@ -108,7 +108,6 @@ cloudapps-cli/
 | `serde_json`| JSON serialization               |
 | `thiserror` | Error derive macros              |
 | `anyhow`    | Error context                    |
-| `toml`      | Configuration file parsing       |
 | `chrono`    | Timestamp handling               |
 | `tabled`    | Table output formatting          |
 
@@ -119,4 +118,4 @@ cloudapps-cli/
 | `mockito`   | HTTP mock server for testing     |
 | `assert_cmd`| CLI integration testing          |
 | `predicates`| Assertion helpers for testing    |
-| `tempfile`  | Temporary files for config tests |
+| `tempfile`  | Temporary files for testing      |

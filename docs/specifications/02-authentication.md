@@ -29,29 +29,15 @@ Two contexts are supported:
 
 1. `--token` command-line option (highest priority)
 2. `CLOUDAPPS_API_TOKEN` environment variable
-3. Configuration file (`~/.config/cloudapps/config.toml`)
 
 ### API URL Resolution Order
 
 1. `--api-url` command-line option (highest priority)
 2. `CLOUDAPPS_API_URL` environment variable
-3. Configuration file (`~/.config/cloudapps/config.toml`)
-
-### Configuration File Format
-
-```toml
-[auth]
-token = "your_api_token"
-
-[api]
-url = "https://<tenant_id>.<tenant_region>.portal.cloudappsecurity.com/api"
-```
 
 ## Security Considerations
 
 - The token must not be stored in source code or committed to version control.
-- The configuration file permissions should be `0600` (owner read/write only).
-- The CLI validates file permissions on the configuration file and warns if they are too permissive.
 - The `--token` option value is masked in verbose output.
 
 ## Implementation Notes
