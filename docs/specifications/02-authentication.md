@@ -25,10 +25,9 @@ Two contexts are supported:
 
 ## CLI Configuration
 
-### Token Resolution Order
+### Token Resolution
 
-1. `--token` command-line option (highest priority)
-2. `CLOUDAPPS_API_TOKEN` environment variable
+The API token is resolved from the `CLOUDAPPS_API_TOKEN` environment variable.
 
 ### API URL Resolution Order
 
@@ -38,7 +37,7 @@ Two contexts are supported:
 ## Security Considerations
 
 - The token must not be stored in source code or committed to version control.
-- The `--token` option value is masked in verbose output.
+- The token value is masked in verbose output.
 
 ## Implementation Notes
 

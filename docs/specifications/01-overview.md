@@ -31,7 +31,7 @@ cloudapps <resource> <action> [options]
 | Option            | Description                          | Environment Variable      |
 |-------------------|--------------------------------------|---------------------------|
 | `--api-url`       | Defender for Cloud Apps API base URL | `CLOUDAPPS_API_URL`       |
-| `--token`         | API token for authentication         | `CLOUDAPPS_API_TOKEN`     |
+| -                 | API token for authentication         | `CLOUDAPPS_API_TOKEN`     |
 | `--output`        | Output format: `json`, `table`       | `CLOUDAPPS_OUTPUT_FORMAT` |
 | `--verbose`       | Enable verbose output                |                           |
 | `--help`          | Show help information                |                           |
