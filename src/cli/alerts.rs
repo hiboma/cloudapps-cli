@@ -27,7 +27,7 @@ pub enum AlertsCommand {
 #[derive(Args)]
 pub struct ListArgs {
     /// Maximum number of results
-    #[arg(long, default_value = "100")]
+    #[arg(long, default_value = "20")]
     pub limit: Option<u64>,
 
     /// Number of results to skip
