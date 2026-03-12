@@ -19,6 +19,7 @@
 | 13  | [Homebrew](13-homebrew.md)         | macOS Homebrew distribution                    |
 | 14  | [Pre-Release Checklist](14-pre-release-checklist.md) | Security, privacy, quality checks before public release |
 | 15  | [UX Improvements](15-ux-improvements.md)             | CLI usability improvements over raw API wrapping        |
+| 16  | [Agent Mode](16-agent-mode.md)                       | Credential isolation via ssh-agent model                |
 
 ## API Reference
 
