@@ -1,10 +1,21 @@
 use clap::Parser;
+use std::sync::OnceLock;
+use tokio::sync::Mutex;
 
 use crate::auth::token::TokenAuth;
 use crate::cli::{Cli, Commands};
 use crate::client::CloudAppsClient;
 use crate::config::resolve_value;
 use crate::error::AppError;
+
+/// Global mutex to serialize stdout capture across concurrent requests.
+/// gag::BufferRedirect operates on process-level fd 1, so only one
+/// capture can be active at a time.
+static STDOUT_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn stdout_mutex() -> &'static Mutex<()> {
+    STDOUT_MUTEX.get_or_init(|| Mutex::new(()))
+}
 
 /// Dispatch a command from a CLI args vector (used by agent handler).
 /// Captures stdout output and returns it as a string.
@@ -29,18 +40,20 @@ pub async fn dispatch_from_args(args: &[String]) -> Result<String, AppError> {
     let auth = TokenAuth::new(token)?;
     let client = CloudAppsClient::new(api_url, Box::new(auth))?;
 
-    // Capture output by redirecting stdout to a buffer.
-    let output = dispatch_command(&client, &command, cli.output, cli.raw).await?;
-    Ok(output)
+    dispatch_command(&client, &command, cli.output, cli.raw).await
 }
 
 /// Dispatch a command and capture its output as a string.
+/// Uses a mutex to serialize stdout capture across concurrent requests.
 async fn dispatch_command(
     client: &CloudAppsClient,
     command: &Commands,
     output_format: crate::output::OutputFormat,
     raw: bool,
 ) -> Result<String, AppError> {
+    // Acquire mutex to prevent concurrent stdout captures.
+    let _guard = stdout_mutex().lock().await;
+
     // Redirect stdout to capture output.
     let buf = gag::BufferRedirect::stdout()
         .map_err(|e| AppError::Config(format!("failed to capture stdout: {}", e)))?;
@@ -72,6 +85,7 @@ async fn dispatch_command(
         .read_to_string(&mut output)
         .map_err(|e| AppError::Config(format!("failed to read captured output: {}", e)))?;
 
+    // _guard is dropped here, releasing the mutex.
     result?;
     Ok(output)
 }

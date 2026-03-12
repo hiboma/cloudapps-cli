@@ -94,17 +94,11 @@ impl RateLimiter {
 }
 
 /// Constant-time token comparison to prevent timing attacks.
+/// Uses subtle crate for proper constant-time operations including
+/// length comparison.
 pub fn constant_time_eq(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let result = a
-        .bytes()
-        .zip(b.bytes())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y));
-
-    result == 0
+    use subtle::ConstantTimeEq;
+    a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
 /// Audit log entry.

@@ -15,6 +15,7 @@ gag = "1"
 libc = "0.2"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 serde = { version = "1", features = ["derive"] }
+subtle = "2"
 serde_json = "1"
 tabled = "0.17"
 thiserror = "2"

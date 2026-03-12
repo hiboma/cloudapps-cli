@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::Semaphore;
 
@@ -47,13 +47,16 @@ pub async fn start(
         std::fs::remove_file(&socket_path)?;
     }
 
+    // Set restrictive umask before bind to prevent TOCTOU between bind and chmod.
+    #[cfg(unix)]
+    let _old_umask = unsafe { libc::umask(0o077) };
+
     let listener = UnixListener::bind(&socket_path)?;
 
-    // Set socket permissions to 0600.
+    // Restore umask after bind.
     #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600))?;
+    unsafe {
+        libc::umask(_old_umask);
     }
 
     // Write PID file.
@@ -117,17 +120,12 @@ pub fn fork_into_background(
                     std::fs::remove_file(&actual_socket_path).ok();
                 }
 
+                // Set restrictive umask before bind to prevent TOCTOU.
+                let old_umask = unsafe { libc::umask(0o077) };
                 let listener =
                     UnixListener::bind(&actual_socket_path).expect("failed to bind socket");
-
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    std::fs::set_permissions(
-                        &actual_socket_path,
-                        std::fs::Permissions::from_mode(0o600),
-                    )
-                    .expect("failed to set socket permissions");
+                unsafe {
+                    libc::umask(old_umask);
                 }
 
                 write_pid_file(&pid_file_path(&actual_socket_path), child_pid)
@@ -266,7 +264,7 @@ async fn accept_loop(
     }
 }
 
-/// Handle a single connection: read request, process, write response.
+/// Handle a single connection: verify peer, read request, process, write response.
 async fn handle_connection(
     stream: tokio::net::UnixStream,
     session_token: &str,
@@ -275,18 +273,53 @@ async fn handle_connection(
     rate_limiter: &RateLimiter,
     audit_log: &AuditLog,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Verify peer UID before processing.
+    #[cfg(unix)]
+    {
+        use crate::agent::peer_verify::get_peer_uid;
+        use crate::agent::security::verify_peer_uid;
+
+        match get_peer_uid(&stream) {
+            Ok(uid) => {
+                if !verify_peer_uid(uid) {
+                    eprintln!("agent: rejected connection from UID {}", uid);
+                    return Ok(());
+                }
+            }
+            Err(e) => {
+                eprintln!("agent: failed to get peer UID: {}", e);
+                return Ok(());
+            }
+        }
+    }
+
+    // Verify peer binary (code signing on macOS, path on Linux).
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        use crate::agent::peer_verify::verify_peer;
+
+        match verify_peer(&stream) {
+            Ok(true) => {}
+            Ok(false) => {
+                eprintln!("agent: rejected connection from unverified peer binary");
+                return Ok(());
+            }
+            Err(e) => {
+                // Log but allow: peer verification may fail in dev builds.
+                eprintln!("agent: peer binary verification failed ({}), allowing", e);
+            }
+        }
+    }
+
     let (reader, mut writer) = stream.into_split();
-    let mut buf_reader = BufReader::new(reader);
+
+    // Apply size limit BEFORE reading to prevent memory exhaustion.
+    let limited_reader = reader.take(MAX_REQUEST_SIZE as u64);
+    let mut buf_reader = BufReader::new(limited_reader);
     let mut line = String::new();
 
-    // Read request with size limit.
     let bytes_read = buf_reader.read_line(&mut line).await?;
     if bytes_read == 0 {
-        return Ok(());
-    }
-    if bytes_read > MAX_REQUEST_SIZE {
-        let resp = AgentResponse::denied(String::new(), "request too large".to_string());
-        writer.write_all(resp.to_json_line()?.as_bytes()).await?;
         return Ok(());
     }
 

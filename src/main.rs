@@ -207,28 +207,21 @@ async fn route_through_agent(
 }
 
 /// Extract command name, action, and remaining args from a Commands variant.
+/// Global flags like --output and --raw are preserved and passed to the agent.
+/// Only agent-specific flags (--socket, --token) are stripped.
 fn extract_command_args(command: &Commands) -> (String, String, Vec<String>) {
-    // Re-construct the command line args from the parsed command.
-    // This is a simplified approach; for full fidelity we would need to
-    // reconstruct from the original argv.
     let cmd_name = command.name().to_string();
 
-    // Get the original command-line arguments and extract what comes after
-    // the command name, skipping global flags.
     let all_args: Vec<String> = std::env::args().collect();
     let mut action = String::new();
     let mut extra_args = Vec::new();
     let mut found_command = false;
 
-    let global_flags = [
-        "--api-url",
-        "--output",
-        "--raw",
-        "--verbose",
-        "--help-for-ai",
-        "--socket",
-        "--token",
-    ];
+    // Only strip agent-specific flags that the server should not see.
+    // Global flags like --output, --raw, --api-url are passed through
+    // so the agent can honor the requested output format.
+    let strip_flags_with_value = ["--socket", "--token"];
+    let strip_flags_bool: [&str; 0] = [];
 
     let mut skip_next = false;
     for arg in all_args.iter().skip(1) {
@@ -237,14 +230,16 @@ fn extract_command_args(command: &Commands) -> (String, String, Vec<String>) {
             continue;
         }
 
-        // Skip global flags and their values.
-        if global_flags.iter().any(|f| arg.starts_with(f)) {
-            if !arg.contains('=') && arg.starts_with("--") {
-                // Flag with separate value (e.g. --output json).
-                // But --raw, --verbose, --help-for-ai are boolean flags.
-                if !["--raw", "--verbose", "--help-for-ai"].contains(&arg.as_str()) {
-                    skip_next = true;
-                }
+        // Check if this flag should be stripped (exact match or --flag=value).
+        let should_strip = strip_flags_with_value
+            .iter()
+            .any(|f| *arg == *f || arg.starts_with(&format!("{}=", f)))
+            || strip_flags_bool.iter().any(|f| *arg == *f);
+
+        if should_strip {
+            // If it's a --flag value (not --flag=value), skip the next arg too.
+            if strip_flags_with_value.iter().any(|f| *arg == *f) && !arg.contains('=') {
+                skip_next = true;
             }
             continue;
         }
