@@ -85,7 +85,6 @@ mod macos {
 mod linux {
     use std::io;
     use std::os::unix::io::AsRawFd;
-    use std::path::PathBuf;
 
     /// Get the PID of the peer process from a Unix domain socket.
     pub fn get_peer_pid(stream: &tokio::net::UnixStream) -> io::Result<libc::pid_t> {
