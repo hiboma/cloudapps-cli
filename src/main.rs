@@ -1,20 +1,62 @@
 use clap::{CommandFactory, Parser};
+use std::path::PathBuf;
 use std::process;
 
 use cloudapps::auth::token::TokenAuth;
+use cloudapps::cli::agent::AgentCommand;
 use cloudapps::cli::{Cli, Commands};
 use cloudapps::client::CloudAppsClient;
 use cloudapps::config::resolve_value;
 use cloudapps::error::AppError;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let cli = Cli::parse();
 
-    if let Err(e) = run(cli).await {
-        eprintln!("Error: {}", e);
-        process::exit(e.exit_code());
+    // Handle agent start (fork) before creating tokio runtime.
+    // fork() is unsafe in multi-threaded processes, so we must do it here.
+    if let Some(Commands::Agent {
+        command:
+            AgentCommand::Start {
+                socket,
+                config,
+                foreground,
+            },
+    }) = &cli.command
+        && !foreground
+    {
+        let session_token = cloudapps::agent::generate_token();
+        let socket_path = socket.as_ref().map(PathBuf::from);
+        let config_path = config.as_ref().map(PathBuf::from);
+
+        if let Err(e) = cloudapps::agent::ensure_socket_dir() {
+            eprintln!("Error: failed to create socket directory: {}", e);
+            process::exit(1);
+        }
+
+        match cloudapps::agent::server::fork_into_background(
+            socket_path,
+            config_path,
+            session_token.clone(),
+        ) {
+            Ok((child_pid, socket_path)) => {
+                cloudapps::agent::server::print_shell_vars(&socket_path, &session_token, child_pid);
+                process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("Error: failed to start agent: {}", e);
+                process::exit(1);
+            }
+        }
     }
+
+    // Create tokio runtime for all other operations.
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+    rt.block_on(async {
+        if let Err(e) = run(cli).await {
+            eprintln!("Error: {}", e);
+            process::exit(e.exit_code());
+        }
+    });
 }
 
 async fn run(cli: Cli) -> Result<(), AppError> {
@@ -26,12 +68,29 @@ async fn run(cli: Cli) -> Result<(), AppError> {
         }
     };
 
+    // Handle agent subcommands.
+    if let Commands::Agent { command: agent_cmd } = &command {
+        return handle_agent_command(agent_cmd).await;
+    }
+
     if cli.help_for_ai {
         let help = cloudapps::help_for_ai::get_help(&command);
         print!("{}", help);
         return Ok(());
     }
 
+    // Check if we should route through the agent.
+    if let Some(ref agent_token) = cli.token {
+        let socket_path = cli
+            .socket
+            .as_ref()
+            .map(PathBuf::from)
+            .unwrap_or_else(cloudapps::agent::resolve_socket_path);
+
+        return route_through_agent(&command, &socket_path, agent_token).await;
+    }
+
+    // Direct execution: require API credentials.
     let api_url = resolve_value(cli.api_url.as_deref(), "CLOUDAPPS_API_URL").ok_or_else(|| {
         AppError::Config("API URL not set. Use --api-url or CLOUDAPPS_API_URL.".to_string())
     })?;
@@ -74,4 +133,135 @@ async fn run(cli: Cli) -> Result<(), AppError> {
             Ok(())
         }
     }
+}
+
+/// Handle agent subcommands (start foreground, stop, status).
+async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
+    match cmd {
+        AgentCommand::Start {
+            socket,
+            config,
+            foreground,
+        } => {
+            // Foreground mode (background is handled before tokio runtime).
+            assert!(*foreground, "background mode should be handled in main()");
+
+            let session_token = cloudapps::agent::generate_token();
+            let socket_path = socket.as_ref().map(PathBuf::from);
+            let config_path = config.as_ref().map(PathBuf::from);
+
+            cloudapps::agent::ensure_socket_dir()
+                .map_err(|e| AppError::Config(format!("failed to create socket dir: {}", e)))?;
+
+            let pid = std::process::id();
+            let actual_socket =
+                socket_path.unwrap_or_else(|| cloudapps::agent::pid_socket_path(pid));
+
+            cloudapps::agent::server::print_shell_vars(&actual_socket, &session_token, pid);
+
+            cloudapps::agent::server::start(Some(actual_socket), config_path, &session_token)
+                .await
+                .map_err(|e| AppError::Config(format!("agent error: {}", e)))?;
+
+            Ok(())
+        }
+        AgentCommand::Stop { socket, all } => {
+            let msg = if *all {
+                cloudapps::agent::client::stop_all()?
+            } else {
+                let socket_path = socket
+                    .as_ref()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(cloudapps::agent::resolve_socket_path);
+                cloudapps::agent::client::stop(&socket_path)?
+            };
+            println!("{}", msg);
+            Ok(())
+        }
+        AgentCommand::Status { socket } => {
+            let socket_path = socket
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(cloudapps::agent::resolve_socket_path);
+            let msg = cloudapps::agent::client::status(&socket_path).await?;
+            println!("{}", msg);
+            Ok(())
+        }
+    }
+}
+
+/// Route a command through the agent via UDS.
+async fn route_through_agent(
+    command: &Commands,
+    socket_path: &std::path::Path,
+    agent_token: &str,
+) -> Result<(), AppError> {
+    let (cmd_name, action, args) = extract_command_args(command);
+
+    let output =
+        cloudapps::agent::client::send_command(&cmd_name, &action, &args, socket_path, agent_token)
+            .await?;
+
+    print!("{}", output);
+    Ok(())
+}
+
+/// Extract command name, action, and remaining args from a Commands variant.
+fn extract_command_args(command: &Commands) -> (String, String, Vec<String>) {
+    // Re-construct the command line args from the parsed command.
+    // This is a simplified approach; for full fidelity we would need to
+    // reconstruct from the original argv.
+    let cmd_name = command.name().to_string();
+
+    // Get the original command-line arguments and extract what comes after
+    // the command name, skipping global flags.
+    let all_args: Vec<String> = std::env::args().collect();
+    let mut action = String::new();
+    let mut extra_args = Vec::new();
+    let mut found_command = false;
+
+    let global_flags = [
+        "--api-url",
+        "--output",
+        "--raw",
+        "--verbose",
+        "--help-for-ai",
+        "--socket",
+        "--token",
+    ];
+
+    let mut skip_next = false;
+    for arg in all_args.iter().skip(1) {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+
+        // Skip global flags and their values.
+        if global_flags.iter().any(|f| arg.starts_with(f)) {
+            if !arg.contains('=') && arg.starts_with("--") {
+                // Flag with separate value (e.g. --output json).
+                // But --raw, --verbose, --help-for-ai are boolean flags.
+                if !["--raw", "--verbose", "--help-for-ai"].contains(&arg.as_str()) {
+                    skip_next = true;
+                }
+            }
+            continue;
+        }
+
+        if !found_command {
+            if *arg == cmd_name || *arg == command.name() {
+                found_command = true;
+            }
+            continue;
+        }
+
+        if action.is_empty() {
+            action = arg.clone();
+        } else {
+            extra_args.push(arg.clone());
+        }
+    }
+
+    (cmd_name, action, extra_args)
 }

@@ -1,4 +1,5 @@
 pub mod activities;
+pub mod agent;
 pub mod alerts;
 pub mod data_enrichment;
 pub mod entities;
@@ -44,6 +45,14 @@ pub struct Cli {
     /// Show AI-friendly help (specification markdown) for the specified resource
     #[arg(long, global = true)]
     pub help_for_ai: bool,
+
+    /// Agent socket path (hidden, set by agent start)
+    #[arg(long, env = "CLOUDAPPS_AGENT_SOCKET", global = true, hide = true)]
+    pub socket: Option<String>,
+
+    /// Agent session token (hidden, set by agent start)
+    #[arg(long, env = "CLOUDAPPS_AGENT_TOKEN", global = true, hide = true)]
+    pub token: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -82,6 +91,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<data_enrichment::DataEnrichmentCommand>,
     },
+    /// Manage the credential isolation agent
+    #[command(subcommand_required = true, arg_required_else_help = true)]
+    Agent {
+        #[command(subcommand)]
+        command: agent::AgentCommand,
+    },
 }
 
 impl Commands {
@@ -92,6 +107,7 @@ impl Commands {
             Commands::Entities { .. } => "entities",
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
+            Commands::Agent { .. } => "agent",
         }
     }
 }
