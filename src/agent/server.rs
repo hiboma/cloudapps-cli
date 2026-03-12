@@ -1,0 +1,348 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixListener;
+use tokio::sync::Semaphore;
+
+use crate::agent::handler::handle_request;
+use crate::agent::protocol::{AgentRequest, AgentResponse};
+use crate::agent::security::{AgentConfig, AuditLog, CommandWhitelist, RateLimiter};
+use crate::agent::{
+    cleanup_files, ensure_socket_dir, pid_file_path, pid_socket_path, write_pid_file,
+};
+
+/// Maximum request size (1 MiB).
+const MAX_REQUEST_SIZE: usize = 1024 * 1024;
+
+/// Maximum concurrent connections.
+const MAX_CONNECTIONS: usize = 64;
+
+/// Start the agent in foreground mode.
+pub async fn start(
+    socket_path: Option<PathBuf>,
+    config_path: Option<PathBuf>,
+    session_token: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let config = AgentConfig::load(config_path.as_deref());
+
+    // SAFETY: getsid(0) is always safe.
+    let session_leader_pid = unsafe { libc::getsid(0) };
+
+    ensure_socket_dir()?;
+    let socket_path = socket_path.unwrap_or_else(|| pid_socket_path(std::process::id()));
+
+    // Clean up stale socket if it exists.
+    if socket_path.exists() {
+        // Check if another agent is actually running on this socket.
+        if tokio::net::UnixStream::connect(&socket_path).await.is_ok() {
+            return Err(format!(
+                "Another agent is already running on {}",
+                socket_path.display()
+            )
+            .into());
+        }
+        // Stale socket, remove it.
+        std::fs::remove_file(&socket_path)?;
+    }
+
+    let listener = UnixListener::bind(&socket_path)?;
+
+    // Set socket permissions to 0600.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    // Write PID file.
+    let pid = std::process::id();
+    write_pid_file(&pid_file_path(&socket_path), pid)?;
+
+    eprintln!("agent: listening on {}", socket_path.display());
+    eprintln!("agent: session leader PID {}", session_leader_pid);
+
+    run_agent(
+        listener,
+        socket_path,
+        session_token,
+        session_leader_pid,
+        config,
+    )
+    .await
+}
+
+/// Fork into background and start the agent.
+/// Returns the child PID on success (in the parent process).
+pub fn fork_into_background(
+    socket_path: Option<PathBuf>,
+    config_path: Option<PathBuf>,
+    session_token: String,
+) -> Result<(u32, PathBuf), Box<dyn std::error::Error>> {
+    let _socket_path = socket_path.unwrap_or_else(|| {
+        // We don't know the child PID yet, use a temporary placeholder.
+        // After fork, the child will re-resolve.
+        pid_socket_path(0)
+    });
+
+    // Record the session leader PID before fork. Using getsid(0) instead of
+    // getppid() so the watchdog monitors the terminal session leader (login
+    // shell), not the immediate parent. This prevents premature shutdown when
+    // launched indirectly (e.g. via Claude Code's temporary shell).
+    // SAFETY: getsid(0) is always safe.
+    let session_leader_pid = unsafe { libc::getsid(0) };
+
+    // SAFETY: We are single-threaded at this point (tokio runtime not yet started).
+    let pid = unsafe { libc::fork() };
+
+    match pid {
+        -1 => Err(std::io::Error::last_os_error().into()),
+        0 => {
+            // Child process: create new session.
+            // SAFETY: setsid() is always safe in forked child.
+            unsafe { libc::setsid() };
+
+            let child_pid = std::process::id();
+            let actual_socket_path = pid_socket_path(child_pid);
+
+            let config = AgentConfig::load(config_path.as_deref());
+
+            // Build and run the tokio runtime in the child.
+            let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+            rt.block_on(async {
+                ensure_socket_dir().expect("failed to create socket dir");
+
+                if actual_socket_path.exists() {
+                    std::fs::remove_file(&actual_socket_path).ok();
+                }
+
+                let listener =
+                    UnixListener::bind(&actual_socket_path).expect("failed to bind socket");
+
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(
+                        &actual_socket_path,
+                        std::fs::Permissions::from_mode(0o600),
+                    )
+                    .expect("failed to set socket permissions");
+                }
+
+                write_pid_file(&pid_file_path(&actual_socket_path), child_pid)
+                    .expect("failed to write PID file");
+
+                eprintln!("agent: listening on {}", actual_socket_path.display());
+                eprintln!("agent: session leader PID {}", session_leader_pid);
+
+                if let Err(e) = run_agent(
+                    listener,
+                    actual_socket_path,
+                    &session_token,
+                    session_leader_pid,
+                    config,
+                )
+                .await
+                {
+                    eprintln!("agent: error: {}", e);
+                }
+            });
+
+            std::process::exit(0);
+        }
+        child_pid => {
+            // Parent process: return child PID and socket path.
+            let child_pid = child_pid as u32;
+            let actual_socket_path = pid_socket_path(child_pid);
+            Ok((child_pid, actual_socket_path))
+        }
+    }
+}
+
+/// Output shell variables for eval.
+pub fn print_shell_vars(socket_path: &std::path::Path, token: &str, pid: u32) {
+    println!(
+        "CLOUDAPPS_AGENT_SOCKET={}; export CLOUDAPPS_AGENT_SOCKET;",
+        socket_path.display()
+    );
+    println!(
+        "CLOUDAPPS_AGENT_TOKEN={}; export CLOUDAPPS_AGENT_TOKEN;",
+        token
+    );
+    println!("CLOUDAPPS_AGENT_PID={}; export CLOUDAPPS_AGENT_PID;", pid);
+    println!("echo Agent pid {};", pid);
+}
+
+/// Run the agent server (accept loop + watchdog).
+async fn run_agent(
+    listener: UnixListener,
+    socket_path: PathBuf,
+    session_token: &str,
+    session_leader_pid: libc::pid_t,
+    config: AgentConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let session_token = Arc::new(session_token.to_string());
+    let last_activity = Arc::new(AtomicU64::new(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    ));
+
+    let whitelist = Arc::new(CommandWhitelist::new(
+        config.whitelist.allowed_commands.into_iter().collect(),
+    ));
+    let rate_limiter = Arc::new(RateLimiter::new(config.rate_limit.requests_per_minute));
+    let audit_log = Arc::new(AuditLog::new());
+    let semaphore = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+
+    let socket_path_clone = socket_path.clone();
+    let last_activity_clone = last_activity.clone();
+
+    let shutdown_reason = tokio::select! {
+        reason = watchdog(session_leader_pid, last_activity_clone, &config.watchdog) => reason,
+        _ = accept_loop(
+            listener,
+            session_token,
+            last_activity,
+            whitelist,
+            rate_limiter,
+            audit_log,
+            semaphore,
+        ) => "accept loop ended",
+        _ = tokio::signal::ctrl_c() => "received SIGINT",
+    };
+
+    eprintln!("agent: shutting down ({})", shutdown_reason);
+    cleanup_files(&socket_path_clone);
+    Ok(())
+}
+
+/// Accept loop: handle incoming connections.
+async fn accept_loop(
+    listener: UnixListener,
+    session_token: Arc<String>,
+    last_activity: Arc<AtomicU64>,
+    whitelist: Arc<CommandWhitelist>,
+    rate_limiter: Arc<RateLimiter>,
+    audit_log: Arc<AuditLog>,
+    semaphore: Arc<Semaphore>,
+) {
+    loop {
+        let Ok((stream, _)) = listener.accept().await else {
+            continue;
+        };
+
+        let permit = match semaphore.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(_) => {
+                eprintln!("agent: connection rejected (max connections reached)");
+                continue;
+            }
+        };
+
+        let session_token = session_token.clone();
+        let last_activity = last_activity.clone();
+        let whitelist = whitelist.clone();
+        let rate_limiter = rate_limiter.clone();
+        let audit_log = audit_log.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = handle_connection(
+                stream,
+                &session_token,
+                &last_activity,
+                &whitelist,
+                &rate_limiter,
+                &audit_log,
+            )
+            .await
+            {
+                eprintln!("agent: connection error: {}", e);
+            }
+            drop(permit);
+        });
+    }
+}
+
+/// Handle a single connection: read request, process, write response.
+async fn handle_connection(
+    stream: tokio::net::UnixStream,
+    session_token: &str,
+    last_activity: &AtomicU64,
+    whitelist: &CommandWhitelist,
+    rate_limiter: &RateLimiter,
+    audit_log: &AuditLog,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let mut line = String::new();
+
+    // Read request with size limit.
+    let bytes_read = buf_reader.read_line(&mut line).await?;
+    if bytes_read == 0 {
+        return Ok(());
+    }
+    if bytes_read > MAX_REQUEST_SIZE {
+        let resp = AgentResponse::denied(String::new(), "request too large".to_string());
+        writer.write_all(resp.to_json_line()?.as_bytes()).await?;
+        return Ok(());
+    }
+
+    let request = match AgentRequest::from_json_line(&line) {
+        Ok(req) => req,
+        Err(_e) => {
+            let resp = AgentResponse::error(String::new(), "invalid request".to_string());
+            writer.write_all(resp.to_json_line()?.as_bytes()).await?;
+            return Ok(());
+        }
+    };
+
+    // Update last activity timestamp.
+    last_activity.store(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+        Ordering::Relaxed,
+    );
+
+    let response = handle_request(request, session_token, whitelist, rate_limiter, audit_log).await;
+
+    writer
+        .write_all(response.to_json_line()?.as_bytes())
+        .await?;
+    Ok(())
+}
+
+/// Watchdog task: checks session leader liveness and idle timeout.
+async fn watchdog(
+    session_leader_pid: libc::pid_t,
+    last_activity: Arc<AtomicU64>,
+    config: &crate::agent::security::WatchdogConfig,
+) -> &'static str {
+    let idle_timeout_secs = config.idle_timeout_hours * 3600;
+    let check_interval = tokio::time::Duration::from_secs(config.check_interval_secs);
+
+    loop {
+        tokio::time::sleep(check_interval).await;
+
+        // Check if session leader is still alive.
+        // SAFETY: kill(pid, 0) is safe—it only checks process existence.
+        let session_alive = unsafe { libc::kill(session_leader_pid, 0) } == 0;
+        if !session_alive {
+            return "session leader exited";
+        }
+
+        // Check idle timeout.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let last = last_activity.load(Ordering::Relaxed);
+        if now - last > idle_timeout_secs {
+            return "idle timeout";
+        }
+    }
+}
