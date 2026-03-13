@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -109,6 +109,9 @@ pub fn fork_into_background(
             let child_pid = std::process::id();
             let actual_socket_path = pid_socket_path(child_pid);
 
+            // Detach stdio so the parent's $() command substitution can complete.
+            redirect_stdio(&actual_socket_path);
+
             let config = AgentConfig::load(config_path.as_deref());
 
             // Build and run the tokio runtime in the child.
@@ -169,7 +172,43 @@ pub fn print_shell_vars(socket_path: &std::path::Path, token: &str, pid: u32) {
         token
     );
     println!("CLOUDAPPS_AGENT_PID={}; export CLOUDAPPS_AGENT_PID;", pid);
-    println!("echo Agent pid {};", pid);
+    eprintln!("agent: pid {}", pid);
+}
+
+/// Redirect stdin/stdout to /dev/null and stderr to a log file.
+/// This ensures the parent's command substitution `$()` completes
+/// because the child no longer holds the stdout pipe open.
+fn redirect_stdio(socket_path: &Path) {
+    // SAFETY: open, dup2, close are safe POSIX system calls.
+    unsafe {
+        let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_RDWR);
+        if devnull >= 0 {
+            libc::dup2(devnull, libc::STDIN_FILENO);
+            libc::dup2(devnull, libc::STDOUT_FILENO);
+            if devnull > libc::STDERR_FILENO {
+                libc::close(devnull);
+            }
+        }
+
+        // Redirect stderr to a log file next to the socket.
+        let log_path = socket_path
+            .parent()
+            .unwrap_or(Path::new("/tmp"))
+            .join("cloudapps-agent.log");
+        if let Ok(log_cstr) = std::ffi::CString::new(log_path.to_string_lossy().as_bytes()) {
+            let log_fd = libc::open(
+                log_cstr.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_APPEND,
+                0o600,
+            );
+            if log_fd >= 0 {
+                libc::dup2(log_fd, libc::STDERR_FILENO);
+                if log_fd > libc::STDERR_FILENO {
+                    libc::close(log_fd);
+                }
+            }
+        }
+    }
 }
 
 /// Run the agent server (accept loop + watchdog).

@@ -21,12 +21,15 @@ Starts the agent process in the background (default) or foreground.
 cloudapps agent start [--socket PATH] [--config PATH] [--foreground]
 ```
 
-Outputs shell variables for `eval`:
+Outputs shell variables for `eval` (stdout) and agent info (stderr):
 ```bash
+# stdout (eval-able)
 CLOUDAPPS_AGENT_SOCKET=/path/to/socket; export CLOUDAPPS_AGENT_SOCKET;
 CLOUDAPPS_AGENT_TOKEN=<session-token>; export CLOUDAPPS_AGENT_TOKEN;
 CLOUDAPPS_AGENT_PID=<pid>; export CLOUDAPPS_AGENT_PID;
-echo Agent pid <pid>;
+
+# stderr
+agent: pid <pid>
 ```
 
 ### `cloudapps agent stop`
