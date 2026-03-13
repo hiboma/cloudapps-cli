@@ -6,6 +6,7 @@ pub const ENTITIES_HELP: &str = include_str!("../docs/specifications/06-resource
 pub const FILES_HELP: &str = include_str!("../docs/specifications/07-resources-files.md");
 pub const DATA_ENRICHMENT_HELP: &str =
     include_str!("../docs/specifications/08-resources-data-enrichment.md");
+#[cfg(unix)]
 pub const AGENT_HELP: &str = include_str!("../docs/specifications/16-agent-mode.md");
 
 pub fn get_help(command: &Commands) -> &'static str {
@@ -15,6 +16,7 @@ pub fn get_help(command: &Commands) -> &'static str {
         Commands::Entities { .. } => ENTITIES_HELP,
         Commands::Files { .. } => FILES_HELP,
         Commands::DataEnrichment { .. } => DATA_ENRICHMENT_HELP,
+        #[cfg(unix)]
         Commands::Agent { .. } => AGENT_HELP,
     }
 }
