@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+#[cfg(unix)]
 pub mod agent;
 pub mod auth;
 pub mod cli;

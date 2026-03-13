@@ -1,4 +1,5 @@
 pub mod activities;
+#[cfg(unix)]
 pub mod agent;
 pub mod alerts;
 pub mod data_enrichment;
@@ -91,7 +92,8 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<data_enrichment::DataEnrichmentCommand>,
     },
-    /// Manage the credential isolation agent
+    /// Manage the credential isolation agent (Unix only)
+    #[cfg(unix)]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     Agent {
         #[command(subcommand)]
@@ -107,6 +109,7 @@ impl Commands {
             Commands::Entities { .. } => "entities",
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
+            #[cfg(unix)]
             Commands::Agent { .. } => "agent",
         }
     }

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process;
 
 use cloudapps::auth::token::TokenAuth;
+#[cfg(unix)]
 use cloudapps::cli::agent::AgentCommand;
 use cloudapps::cli::{Cli, Commands};
 use cloudapps::client::CloudAppsClient;
@@ -14,6 +15,7 @@ fn main() {
 
     // Handle agent start (fork) before creating tokio runtime.
     // fork() is unsafe in multi-threaded processes, so we must do it here.
+    #[cfg(unix)]
     if let Some(Commands::Agent {
         command:
             AgentCommand::Start {
@@ -69,6 +71,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
     };
 
     // Handle agent subcommands.
+    #[cfg(unix)]
     if let Commands::Agent { command: agent_cmd } = &command {
         return handle_agent_command(agent_cmd).await;
     }
@@ -80,6 +83,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
     }
 
     // Check if we should route through the agent.
+    #[cfg(unix)]
     if let Some(ref agent_token) = cli.token {
         let socket_path = cli
             .socket
@@ -136,6 +140,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
 }
 
 /// Handle agent subcommands (start foreground, stop, status).
+#[cfg(unix)]
 async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
     match cmd {
         AgentCommand::Start {
@@ -191,6 +196,7 @@ async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
 }
 
 /// Route a command through the agent via UDS.
+#[cfg(unix)]
 async fn route_through_agent(
     command: &Commands,
     socket_path: &std::path::Path,
@@ -209,6 +215,7 @@ async fn route_through_agent(
 /// Extract command name, action, and remaining args from a Commands variant.
 /// Global flags like --output and --raw are preserved and passed to the agent.
 /// Only agent-specific flags (--socket, --token) are stripped.
+#[cfg(unix)]
 fn extract_command_args(command: &Commands) -> (String, String, Vec<String>) {
     let cmd_name = command.name().to_string();
 
