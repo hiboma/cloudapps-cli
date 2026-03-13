@@ -52,7 +52,7 @@ async fn list(
     // Data enrichment list uses GET, but filters are applied as query parameters.
     // For simplicity, we fetch all and filter client-side if filters are complex.
     // The API also supports query parameters for basic filtering.
-    let resp: serde_json::Value = client.get("/api/subnet/").await?.json().await?;
+    let resp: serde_json::Value = client.get("/api/v1/subnet/").await?.json().await?;
 
     match output_format {
         OutputFormat::Json | OutputFormat::JsonMinify => {
@@ -138,7 +138,7 @@ async fn create(
     });
 
     let resp: serde_json::Value = client
-        .post_json("/api/subnet/create_rule/", &body)
+        .post_json("/api/v1/subnet/create_rule/", &body)
         .await?
         .json()
         .await?;
@@ -170,7 +170,7 @@ async fn update(
 
     let resp: serde_json::Value = client
         .post_json(
-            &format!("/api/subnet/{}/update_rule/", args.id),
+            &format!("/api/v1/subnet/{}/update_rule/", args.id),
             &serde_json::Value::Object(body),
         )
         .await?
@@ -181,7 +181,7 @@ async fn update(
 }
 
 async fn delete(client: &CloudAppsClient, id: &str) -> Result<(), AppError> {
-    client.delete(&format!("/api/subnet/{}/", id)).await?;
+    client.delete(&format!("/api/v1/subnet/{}/", id)).await?;
     eprintln!("Deleted IP range {}", id);
     Ok(())
 }

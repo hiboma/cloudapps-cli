@@ -15,7 +15,7 @@ async fn test_data_enrichment_list_returns_data() {
     let body = include_str!("../testdata/data_enrichment/list_response.json");
 
     let mock = server
-        .mock("GET", "/api/subnet/")
+        .mock("GET", "/api/v1/subnet/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -24,7 +24,7 @@ async fn test_data_enrichment_list_returns_data() {
 
     let client = create_client(&server.url());
     let resp: serde_json::Value = client
-        .get("/api/subnet/")
+        .get("/api/v1/subnet/")
         .await
         .unwrap()
         .json()
@@ -46,7 +46,7 @@ async fn test_data_enrichment_create() {
     let body = include_str!("../testdata/data_enrichment/create_response.json");
 
     let mock = server
-        .mock("POST", "/api/subnet/create_rule/")
+        .mock("POST", "/api/v1/subnet/create_rule/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -74,7 +74,7 @@ async fn test_data_enrichment_delete() {
     let mut server = Server::new_async().await;
 
     let mock = server
-        .mock("DELETE", "/api/subnet/subnet-xxxx-1/")
+        .mock("DELETE", "/api/v1/subnet/subnet-xxxx-1/")
         .with_status(200)
         .with_body("{}")
         .create_async()
@@ -96,7 +96,7 @@ async fn test_data_enrichment_update() {
     let body = include_str!("../testdata/data_enrichment/create_response.json");
 
     let mock = server
-        .mock("POST", "/api/subnet/subnet-xxxx-1/update_rule/")
+        .mock("POST", "/api/v1/subnet/subnet-xxxx-1/update_rule/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -125,7 +125,7 @@ async fn test_data_enrichment_handle_list() {
     let body = include_str!("../testdata/data_enrichment/list_response.json");
 
     let _mock = server
-        .mock("GET", "/api/subnet/")
+        .mock("GET", "/api/v1/subnet/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -175,7 +175,7 @@ async fn test_data_enrichment_handle_list_table_output() {
     let body = include_str!("../testdata/data_enrichment/list_response.json");
 
     let _mock = server
-        .mock("GET", "/api/subnet/")
+        .mock("GET", "/api/v1/subnet/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -206,7 +206,7 @@ async fn test_data_enrichment_handle_list_with_category_filter() {
     let body = include_str!("../testdata/data_enrichment/list_response.json");
 
     let _mock = server
-        .mock("GET", "/api/subnet/")
+        .mock("GET", "/api/v1/subnet/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -237,7 +237,7 @@ async fn test_data_enrichment_handle_list_custom_flag() {
     let body = include_str!("../testdata/data_enrichment/list_response.json");
 
     let _mock = server
-        .mock("GET", "/api/subnet/")
+        .mock("GET", "/api/v1/subnet/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -268,7 +268,7 @@ async fn test_data_enrichment_create_with_tags() {
     let body = include_str!("../testdata/data_enrichment/create_response.json");
 
     let mock = server
-        .mock("POST", "/api/subnet/create_rule/")
+        .mock("POST", "/api/v1/subnet/create_rule/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
@@ -297,7 +297,7 @@ async fn test_data_enrichment_update_multiple_fields() {
     let body = include_str!("../testdata/data_enrichment/create_response.json");
 
     let mock = server
-        .mock("POST", "/api/subnet/subnet-xxxx-1/update_rule/")
+        .mock("POST", "/api/v1/subnet/subnet-xxxx-1/update_rule/")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(body)
