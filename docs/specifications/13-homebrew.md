@@ -10,28 +10,28 @@ Repository: `github.com/hiboma/homebrew-tap`
 
 ## Formula
 
-File: `Formula/cloudapps.rb`
+File: `Formula/cloudapps-cli.rb`
 
 ```ruby
-class Cloudapps < Formula
+class CloudappsCli < Formula
   desc "CLI tool for Microsoft Defender for Cloud Apps REST API"
   homepage "https://github.com/hiboma/cloudapps-cli"
   version "0.1.0"
 
   if Hardware::CPU.arm?
-    url "https://github.com/hiboma/cloudapps-cli/releases/download/v#{version}/cloudapps-aarch64-apple-darwin.tar.gz"
+    url "https://github.com/hiboma/cloudapps-cli/releases/download/v#{version}/cloudapps-cli-aarch64-apple-darwin.tar.gz"
     sha256 "<sha256>"
   else
-    url "https://github.com/hiboma/cloudapps-cli/releases/download/v#{version}/cloudapps-x86_64-apple-darwin.tar.gz"
+    url "https://github.com/hiboma/cloudapps-cli/releases/download/v#{version}/cloudapps-cli-x86_64-apple-darwin.tar.gz"
     sha256 "<sha256>"
   end
 
   def install
-    bin.install "cloudapps"
+    bin.install "cloudapps-cli"
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/cloudapps --version")
+    assert_match version.to_s, shell_output("#{bin}/cloudapps-cli --version")
   end
 end
 ```
@@ -40,7 +40,7 @@ end
 
 ```bash
 brew tap hiboma/tap
-brew install cloudapps
+brew install cloudapps-cli
 ```
 
 ## Update Process
@@ -52,10 +52,10 @@ brew install cloudapps
 ## Binary Packaging
 
 - macOS binaries are packaged as `.tar.gz` archives.
-- Each archive contains the `cloudapps` binary.
-- Archive naming convention: `cloudapps-{target}.tar.gz`
-  - `cloudapps-x86_64-apple-darwin.tar.gz`
-  - `cloudapps-aarch64-apple-darwin.tar.gz`
+- Each archive contains the `cloudapps-cli` binary.
+- Archive naming convention: `cloudapps-cli-{target}.tar.gz`
+  - `cloudapps-cli-x86_64-apple-darwin.tar.gz`
+  - `cloudapps-cli-aarch64-apple-darwin.tar.gz`
 
 ## Notes
 

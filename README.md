@@ -1,4 +1,4 @@
-# ☁️ cloudapps
+# ☁️ cloudapps-cli
 
 A CLI tool for the [Microsoft Defender for Cloud Apps REST API](https://learn.microsoft.com/en-us/defender-cloud-apps/api-introduction), written in Rust.
 
@@ -8,7 +8,7 @@ A CLI tool for the [Microsoft Defender for Cloud Apps REST API](https://learn.mi
 
 ```bash
 brew tap hiboma/tap
-brew install cloudapps
+brew install cloudapps-cli
 ```
 
 ### From GitHub Releases
@@ -42,7 +42,7 @@ export CLOUDAPPS_API_URL="https://your-tenant.us3.portal.cloudappsecurity.com"
 **CLI options:**
 
 ```bash
-cloudapps --api-url "https://..." alerts list
+cloudapps-cli --api-url "https://..." alerts list
 ```
 
 Priority order for API URL: CLI option > environment variable.
@@ -50,7 +50,7 @@ Priority order for API URL: CLI option > environment variable.
 ## Usage
 
 ```
-cloudapps <resource> <action> [options]
+cloudapps-cli <resource> <action> [options]
 ```
 
 ### Resources
@@ -59,90 +59,90 @@ cloudapps <resource> <action> [options]
 
 ```bash
 # List activities
-cloudapps activities list --limit 50
+cloudapps-cli activities list --limit 50
 
 # List with filters
-cloudapps activities list --user user@example.com --ip 192.0.2.1
-cloudapps activities list --country US --query "login"
+cloudapps-cli activities list --user user@example.com --ip 192.0.2.1
+cloudapps-cli activities list --country US --query "login"
 
 # Fetch single activity
-cloudapps activities fetch <id>
+cloudapps-cli activities fetch <id>
 ```
 
 #### Alerts
 
 ```bash
 # List alerts
-cloudapps alerts list --limit 50
-cloudapps alerts list --severity high
-cloudapps alerts list --resolution open
-cloudapps alerts list --open
-cloudapps alerts list --closed
+cloudapps-cli alerts list --limit 50
+cloudapps-cli alerts list --severity high
+cloudapps-cli alerts list --resolution open
+cloudapps-cli alerts list --open
+cloudapps-cli alerts list --closed
 
 # Fetch single alert
-cloudapps alerts fetch <id>
+cloudapps-cli alerts fetch <id>
 
 # Close alerts
-cloudapps alerts close <id> --as benign
-cloudapps alerts close <id> --as false-positive
-cloudapps alerts close <id> --as true-positive --comment "confirmed threat"
+cloudapps-cli alerts close <id> --as benign
+cloudapps-cli alerts close <id> --as false-positive
+cloudapps-cli alerts close <id> --as true-positive --comment "confirmed threat"
 
 # Bulk close
-cloudapps alerts close <id1> <id2> --as benign
+cloudapps-cli alerts close <id1> <id2> --as benign
 
 # Mark read/unread
-cloudapps alerts mark-read <id1> <id2>
-cloudapps alerts mark-unread <id>
+cloudapps-cli alerts mark-read <id1> <id2>
+cloudapps-cli alerts mark-unread <id>
 ```
 
 #### Entities
 
 ```bash
 # List entities
-cloudapps entities list --limit 50
-cloudapps entities list --type user --domain example.com
-cloudapps entities list --is-admin --status active
+cloudapps-cli entities list --limit 50
+cloudapps-cli entities list --type user --domain example.com
+cloudapps-cli entities list --is-admin --status active
 
 # Fetch single entity
-cloudapps entities fetch <id>
+cloudapps-cli entities fetch <id>
 
 # Fetch entity tree
-cloudapps entities fetch-tree <id>
+cloudapps-cli entities fetch-tree <id>
 ```
 
 #### Files
 
 ```bash
 # List files
-cloudapps files list --limit 50
-cloudapps files list --filetype document --sharing private
-cloudapps files list --extension xlsx
+cloudapps-cli files list --limit 50
+cloudapps-cli files list --filetype document --sharing private
+cloudapps-cli files list --extension xlsx
 
 # Fetch single file
-cloudapps files fetch <id>
+cloudapps-cli files fetch <id>
 ```
 
 #### Data Enrichment (IP Ranges)
 
 ```bash
 # List IP ranges
-cloudapps data-enrichment list
-cloudapps data-enrichment list --category corporate
-cloudapps data-enrichment list --builtin
-cloudapps data-enrichment list --custom
+cloudapps-cli data-enrichment list
+cloudapps-cli data-enrichment list --category corporate
+cloudapps-cli data-enrichment list --builtin
+cloudapps-cli data-enrichment list --custom
 
 # Create IP range
-cloudapps data-enrichment create \
+cloudapps-cli data-enrichment create \
   --name "Office Network" \
   --subnets "192.0.2.0/24,198.51.100.0/24" \
   --category corporate \
   --organization "Example Corp"
 
 # Update IP range
-cloudapps data-enrichment update <id> --name "Updated Name"
+cloudapps-cli data-enrichment update <id> --name "Updated Name"
 
 # Delete IP range
-cloudapps data-enrichment delete <id>
+cloudapps-cli data-enrichment delete <id>
 ```
 
 ### Global Options
@@ -159,7 +159,7 @@ cloudapps data-enrichment delete <id>
 All list commands support `--filter` for raw JSON filter expressions:
 
 ```bash
-cloudapps activities list --filter '{"actionType":{"eq":["LOGIN"]}}'
+cloudapps-cli activities list --filter '{"actionType":{"eq":["LOGIN"]}}'
 ```
 
 ### Pagination
@@ -167,7 +167,7 @@ cloudapps activities list --filter '{"actionType":{"eq":["LOGIN"]}}'
 Use `--limit` and `--skip` for manual pagination, or `--all` to fetch all records automatically:
 
 ```bash
-cloudapps alerts list --all
+cloudapps-cli alerts list --all
 ```
 
 ## Development

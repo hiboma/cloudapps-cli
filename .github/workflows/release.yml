@@ -64,9 +64,9 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: |
-          ARCHIVE_NAME="cloudapps-${TARGET}"
+          ARCHIVE_NAME="cloudapps-cli-${TARGET}"
           mkdir "${ARCHIVE_NAME}"
-          cp "target/${TARGET}/release/cloudapps" "${ARCHIVE_NAME}/"
+          cp "target/${TARGET}/release/cloudapps-cli" "${ARCHIVE_NAME}/"
           cp LICENSE README.md "${ARCHIVE_NAME}/"
           tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
 
@@ -76,9 +76,9 @@ jobs:
           TARGET: ${{ matrix.target }}
         shell: pwsh
         run: |
-          $archiveName = "cloudapps-${env:TARGET}"
+          $archiveName = "cloudapps-cli-${env:TARGET}"
           New-Item -ItemType Directory -Path $archiveName
-          Copy-Item "target\${env:TARGET}\release\cloudapps.exe" $archiveName
+          Copy-Item "target\${env:TARGET}\release\cloudapps-cli.exe" $archiveName
           Copy-Item LICENSE, README.md $archiveName
           Compress-Archive -Path $archiveName -DestinationPath "${archiveName}.zip"
 
@@ -86,15 +86,15 @@ jobs:
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cloudapps-${{ matrix.target }}
-          path: cloudapps-${{ matrix.target }}.tar.gz
+          name: cloudapps-cli-${{ matrix.target }}
+          path: cloudapps-cli-${{ matrix.target }}.tar.gz
 
       - name: Upload artifact (windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cloudapps-${{ matrix.target }}
-          path: cloudapps-${{ matrix.target }}.zip
+          name: cloudapps-cli-${{ matrix.target }}
+          path: cloudapps-cli-${{ matrix.target }}.zip
 
   release:
     needs: build
@@ -117,6 +117,6 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            artifacts/cloudapps-*.tar.gz
-            artifacts/cloudapps-*.zip
+            artifacts/cloudapps-cli-*.tar.gz
+            artifacts/cloudapps-cli-*.zip
             artifacts/sha256sums.txt

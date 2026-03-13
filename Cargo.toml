@@ -6,6 +6,10 @@ description = "CLI tool for Microsoft Defender for Cloud Apps REST API"
 license = "MIT"
 repository = "https://github.com/hiboma/cloudapps-cli"
 
+[[bin]]
+name = "cloudapps-cli"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
