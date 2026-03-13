@@ -11,7 +11,7 @@ use crate::output::OutputFormat;
 
 #[derive(Parser)]
 #[command(
-    name = "cloudapps",
+    name = "cloudapps-cli",
     version,
     about = "CLI tool for Microsoft Defender for Cloud Apps REST API",
     subcommand_required = false,

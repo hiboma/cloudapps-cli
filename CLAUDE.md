@@ -2,10 +2,10 @@
 
 ## Project
 
-`cloudapps` is a CLI tool for the Microsoft Defender for Cloud Apps REST API, written in Rust.
+`cloudapps-cli` is a CLI tool for the Microsoft Defender for Cloud Apps REST API, written in Rust.
 
 ```
-cloudapps <resource> <action> [options]
+cloudapps-cli <resource> <action> [options]
 ```
 
 Resources: `activities`, `alerts`, `entities`, `files`, `data-enrichment`
