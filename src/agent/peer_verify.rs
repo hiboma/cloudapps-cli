@@ -60,7 +60,8 @@ mod macos {
         let peer_pid = get_peer_pid(stream)?;
         let peer_path = get_pid_path(peer_pid)?;
 
-        let my_path = std::env::current_exe()?;
+        let my_path = std::fs::canonicalize(std::env::current_exe()?)?;
+        let peer_path = std::fs::canonicalize(peer_path)?;
 
         // Check that the peer is running the same binary.
         if peer_path != my_path {
@@ -117,8 +118,8 @@ mod linux {
     /// Verify the peer process by checking /proc/PID/exe matches our own executable.
     pub fn verify_peer(stream: &tokio::net::UnixStream) -> io::Result<bool> {
         let peer_pid = get_peer_pid(stream)?;
-        let peer_path = std::fs::read_link(format!("/proc/{}/exe", peer_pid))?;
-        let my_path = std::env::current_exe()?;
+        let peer_path = std::fs::canonicalize(format!("/proc/{}/exe", peer_pid))?;
+        let my_path = std::fs::canonicalize(std::env::current_exe()?)?;
 
         if peer_path != my_path {
             eprintln!(
