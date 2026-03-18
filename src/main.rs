@@ -22,6 +22,7 @@ fn main() {
                 socket,
                 config,
                 foreground,
+                shared,
             },
     }) = &cli.command
         && !foreground
@@ -39,9 +40,22 @@ fn main() {
             socket_path,
             config_path,
             session_token.clone(),
+            *shared,
         ) {
             Ok((child_pid, socket_path)) => {
-                cloudapps::agent::server::print_shell_vars(&socket_path, &session_token, child_pid);
+                if *shared {
+                    eprintln!("agent started in shared mode, pid {}", child_pid);
+                    eprintln!(
+                        "session file: {}",
+                        cloudapps::agent::session::session_file_path().display()
+                    );
+                } else {
+                    cloudapps::agent::server::print_shell_vars(
+                        &socket_path,
+                        &session_token,
+                        child_pid,
+                    );
+                }
                 process::exit(0);
             }
             Err(e) => {
@@ -84,14 +98,25 @@ async fn run(cli: Cli) -> Result<(), AppError> {
 
     // Check if we should route through the agent.
     #[cfg(unix)]
-    if let Some(ref agent_token) = cli.token {
-        let socket_path = cli
-            .socket
-            .as_ref()
-            .map(PathBuf::from)
-            .unwrap_or_else(cloudapps::agent::resolve_socket_path);
+    if !cli.no_agent {
+        if let Some(ref agent_token) = cli.token {
+            let socket_path = cli
+                .socket
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(cloudapps::agent::resolve_socket_path);
 
-        return route_through_agent(&command, &socket_path, agent_token).await;
+            return route_through_agent(&command, &socket_path, agent_token).await;
+        }
+
+        // If no explicit token but a session file exists, use it for auto-detection.
+        if cli.token.is_none()
+            && let Some(session) = cloudapps::agent::session::read_session()
+            && cloudapps::agent::session::is_session_alive(&session)
+        {
+            let socket_path = PathBuf::from(&session.socket_path);
+            return route_through_agent(&command, &socket_path, &session.token).await;
+        }
     }
 
     // Direct execution: require API credentials.
@@ -147,6 +172,7 @@ async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
             socket,
             config,
             foreground,
+            shared,
         } => {
             // Foreground mode (background is handled before tokio runtime).
             assert!(*foreground, "background mode should be handled in main()");
@@ -162,11 +188,18 @@ async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
             let actual_socket =
                 socket_path.unwrap_or_else(|| cloudapps::agent::pid_socket_path(pid));
 
-            cloudapps::agent::server::print_shell_vars(&actual_socket, &session_token, pid);
+            if !shared {
+                cloudapps::agent::server::print_shell_vars(&actual_socket, &session_token, pid);
+            }
 
-            cloudapps::agent::server::start(Some(actual_socket), config_path, &session_token)
-                .await
-                .map_err(|e| AppError::Config(format!("agent error: {}", e)))?;
+            cloudapps::agent::server::start(
+                Some(actual_socket),
+                config_path,
+                &session_token,
+                *shared,
+            )
+            .await
+            .map_err(|e| AppError::Config(format!("agent error: {}", e)))?;
 
             Ok(())
         }
@@ -228,7 +261,7 @@ fn extract_command_args(command: &Commands) -> (String, String, Vec<String>) {
     // Global flags like --output, --raw, --api-url are passed through
     // so the agent can honor the requested output format.
     let strip_flags_with_value = ["--socket", "--token"];
-    let strip_flags_bool: [&str; 0] = [];
+    let strip_flags_bool = ["--no-agent"];
 
     let mut skip_next = false;
     for arg in all_args.iter().skip(1) {
