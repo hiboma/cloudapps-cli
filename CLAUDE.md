@@ -28,6 +28,14 @@ Detailed specifications are in `docs/specifications/`. See `docs/specifications/
 | 14  | Pre-release checklist |
 | 15  | CLI UX improvements (named enums, shorthand filters, unified close) |
 
+## Agent Shared Mode
+
+- `cloudapps-cli agent start --shared` writes session info to `~/.local/share/cloudapps-cli/session.json`
+- No `eval` needed; any terminal can auto-detect the agent via session file
+- Session leader monitoring is disabled; idle timeout still applies
+- `--no-agent` flag forces direct API mode, skipping agent auto-detection
+- Priority: `--no-agent` > `CLOUDAPPS_AGENT_TOKEN` env > session.json > direct mode
+
 ## Build and Test
 
 ```bash
