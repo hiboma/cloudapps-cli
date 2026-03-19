@@ -63,25 +63,41 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Manage activities
-    #[command(subcommand_required = false, arg_required_else_help = true)]
+    #[command(
+        visible_alias = "activity",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
     Activities {
         #[command(subcommand)]
         command: Option<activities::ActivitiesCommand>,
     },
     /// Manage alerts
-    #[command(subcommand_required = false, arg_required_else_help = true)]
+    #[command(
+        visible_alias = "alert",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
     Alerts {
         #[command(subcommand)]
         command: Option<alerts::AlertsCommand>,
     },
     /// Manage entities
-    #[command(subcommand_required = false, arg_required_else_help = true)]
+    #[command(
+        visible_alias = "entity",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
     Entities {
         #[command(subcommand)]
         command: Option<entities::EntitiesCommand>,
     },
     /// Manage files
-    #[command(subcommand_required = false, arg_required_else_help = true)]
+    #[command(
+        visible_alias = "file",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
     Files {
         #[command(subcommand)]
         command: Option<files::FilesCommand>,
@@ -89,6 +105,7 @@ pub enum Commands {
     /// Manage IP address ranges (data enrichment)
     #[command(
         name = "data-enrichment",
+        visible_aliases = ["data-enrich", "enrichment"],
         subcommand_required = false,
         arg_required_else_help = true
     )]
