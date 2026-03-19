@@ -16,7 +16,9 @@ use crate::output::OutputFormat;
     version,
     about = "CLI tool for Microsoft Defender for Cloud Apps REST API",
     subcommand_required = false,
-    arg_required_else_help = true
+    arg_required_else_help = true,
+    subcommand_help_heading = "Resources",
+    after_help = "System:\n  agent  Manage the credential isolation agent (Unix only)"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -62,6 +64,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    // -- Resources --
     /// Manage activities
     #[command(
         visible_alias = "activity",
@@ -113,9 +116,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<data_enrichment::DataEnrichmentCommand>,
     },
+
+    // -- System --
     /// Manage the credential isolation agent (Unix only)
     #[cfg(unix)]
-    #[command(subcommand_required = true, arg_required_else_help = true)]
+    #[command(subcommand_required = true, arg_required_else_help = true, hide = true)]
     Agent {
         #[command(subcommand)]
         command: agent::AgentCommand,
