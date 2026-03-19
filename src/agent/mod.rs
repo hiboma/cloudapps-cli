@@ -10,11 +10,17 @@ use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-/// Default socket directory under the user's runtime directory.
+/// Resolve the socket directory.
+///
+/// Priority:
+/// 1. `dirs::runtime_dir()/cloudapps-agent` (Linux systemd: `/run/user/<uid>/cloudapps-agent`)
+/// 2. `std::env::temp_dir()/cloudapps-agent` (macOS: `/var/folders/.../T/cloudapps-agent`, Linux: `/tmp/cloudapps-agent`)
+///
+/// On macOS, `std::env::temp_dir()` returns a user-specific directory under
+/// `/var/folders/` with 0700 permissions, which is more secure than `/tmp`.
 fn resolve_socket_dir() -> PathBuf {
     dirs::runtime_dir()
-        .or_else(|| std::env::var("TMPDIR").ok().map(PathBuf::from))
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .unwrap_or_else(std::env::temp_dir)
         .join("cloudapps-agent")
 }
 
