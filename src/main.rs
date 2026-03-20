@@ -216,12 +216,16 @@ async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
             println!("{}", msg);
             Ok(())
         }
-        AgentCommand::Status { socket } => {
-            let socket_path = socket
-                .as_ref()
-                .map(PathBuf::from)
-                .unwrap_or_else(cloudapps::agent::resolve_socket_path);
-            let msg = cloudapps::agent::client::status(&socket_path).await?;
+        AgentCommand::Status { socket, shared } => {
+            let msg = if *shared {
+                cloudapps::agent::client::status_shared().await?
+            } else {
+                let socket_path = socket
+                    .as_ref()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(cloudapps::agent::resolve_socket_path);
+                cloudapps::agent::client::status(&socket_path).await?
+            };
             println!("{}", msg);
             Ok(())
         }
