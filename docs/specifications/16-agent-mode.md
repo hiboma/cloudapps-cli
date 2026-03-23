@@ -137,7 +137,6 @@ allowed_commands = ["activities", "alerts", "entities", "files", "data-enrichmen
 requests_per_minute = 60
 
 [watchdog]
-idle_timeout_hours = 8
 check_interval_secs = 30
 ```
 
