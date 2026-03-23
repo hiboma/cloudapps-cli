@@ -242,8 +242,6 @@ fn default_requests_per_minute() -> u32 {
 
 #[derive(Debug, Deserialize)]
 pub struct WatchdogConfig {
-    #[serde(default = "default_idle_timeout_hours")]
-    pub idle_timeout_hours: u64,
     #[serde(default = "default_check_interval_secs")]
     pub check_interval_secs: u64,
 }
@@ -251,14 +249,9 @@ pub struct WatchdogConfig {
 impl Default for WatchdogConfig {
     fn default() -> Self {
         Self {
-            idle_timeout_hours: default_idle_timeout_hours(),
             check_interval_secs: default_check_interval_secs(),
         }
     }
-}
-
-fn default_idle_timeout_hours() -> u64 {
-    8
 }
 
 fn default_check_interval_secs() -> u64 {
@@ -329,7 +322,7 @@ mod tests {
     fn test_config_defaults() {
         let config = AgentConfig::load(None);
         assert_eq!(config.rate_limit.requests_per_minute, 60);
-        assert_eq!(config.watchdog.idle_timeout_hours, 8);
+        assert_eq!(config.watchdog.check_interval_secs, 30);
         assert_eq!(config.whitelist.allowed_commands.len(), 5);
     }
 }
