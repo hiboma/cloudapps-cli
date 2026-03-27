@@ -28,12 +28,12 @@ Detailed specifications are in `docs/specifications/`. See `docs/specifications/
 | 14  | Pre-release checklist |
 | 15  | CLI UX improvements (named enums, shorthand filters, unified close) |
 
-## Agent Shared Mode
+## Agent Mode
 
-- `cloudapps-cli agent start --shared` writes session info to `~/.local/share/cloudapps-cli/session.json`
-- No `eval` needed; any terminal can auto-detect the agent via session file
-- Session leader monitoring is disabled; no idle timeout
-- Duplicate start is detected via socket connection check ("already started")
+- `cloudapps-cli agent start` resolves credentials into `CloudAppsCredentials` struct, clears env vars, then forks
+- Session info written to `~/.local/share/cloudapps-cli/session.json` for cross-terminal auto-detection
+- Signal-only shutdown (no session leader monitoring, no idle timeout)
+- Duplicate start is detected via session.json before fork ("already started")
 - `--no-agent` flag forces direct API mode, skipping agent auto-detection
 - Priority: `--no-agent` > `CLOUDAPPS_AGENT_TOKEN` env > session.json > direct mode
 
