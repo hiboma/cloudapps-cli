@@ -244,6 +244,14 @@ fn disable_core_dump() {
     }
 }
 
+/// Validate that required credentials are available before starting the agent.
+/// Delegates to `CloudAppsCredentials::validate()`.
+pub fn validate_credentials(
+    credentials: &crate::config::CloudAppsCredentials,
+) -> Result<(), String> {
+    credentials.validate()
+}
+
 /// Check if debug logging is enabled via RUST_LOG environment variable.
 /// This must be called before sanitize_env() clears the environment,
 /// or use the cached result.
@@ -275,6 +283,7 @@ mod env_tests {
     #[test]
     fn test_is_env_whitelisted_rejects_secrets() {
         assert!(!is_env_whitelisted("CLOUDAPPS_API_TOKEN"));
+        assert!(!is_env_whitelisted("CLOUDAPPS_API_URL"));
         assert!(!is_env_whitelisted("GITHUB_TOKEN"));
         assert!(!is_env_whitelisted("SLACK_BOT_TOKEN"));
         assert!(!is_env_whitelisted("AWS_SECRET_ACCESS_KEY"));
@@ -308,5 +317,33 @@ mod env_tests {
                 "HOME should be retained after sanitize_env"
             );
         }
+    }
+
+    #[test]
+    fn test_sanitize_env_removes_cloudapps_credentials() {
+        let key = "CLOUDAPPS_API_TOKEN";
+        unsafe {
+            std::env::set_var(key, "should-be-removed");
+        }
+        assert!(std::env::var(key).is_ok());
+
+        sanitize_env();
+
+        assert!(
+            std::env::var(key).is_err(),
+            "CLOUDAPPS_API_TOKEN should be removed by sanitize_env"
+        );
+    }
+
+    #[test]
+    fn test_validate_credentials_delegates_to_cloudapps_credentials() {
+        let creds = crate::config::CloudAppsCredentials {
+            api_url: Some("https://example.com".to_string()),
+            api_token: Some("token".to_string()),
+        };
+        assert!(validate_credentials(&creds).is_ok());
+
+        let empty = crate::config::CloudAppsCredentials::default();
+        assert!(validate_credentials(&empty).is_err());
     }
 }

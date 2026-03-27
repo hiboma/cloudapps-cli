@@ -7,11 +7,14 @@ use cloudapps::auth::token::TokenAuth;
 use cloudapps::cli::agent::AgentCommand;
 use cloudapps::cli::{Cli, Commands};
 use cloudapps::client::CloudAppsClient;
-use cloudapps::config::resolve_value;
+use cloudapps::config::CloudAppsCredentials;
 use cloudapps::error::AppError;
 
 fn main() {
     let cli = Cli::parse();
+
+    // Resolve credentials early (before fork).
+    let credentials = CloudAppsCredentials::resolve(cli.api_url.as_deref());
 
     // Handle agent start (fork) before creating tokio runtime.
     // fork() is unsafe in multi-threaded processes, so we must do it here.
@@ -20,16 +23,36 @@ fn main() {
         command:
             AgentCommand::Start {
                 socket,
-                config,
+                config: agent_config,
                 foreground,
-                shared,
             },
     }) = &cli.command
         && !foreground
     {
         let session_token = cloudapps::agent::generate_token();
         let socket_path = socket.as_ref().map(PathBuf::from);
-        let config_path = config.as_ref().map(PathBuf::from);
+        let config_path = agent_config.as_ref().map(PathBuf::from);
+
+        if let Err(e) = cloudapps::agent::validate_credentials(&credentials) {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+
+        // Check if an agent is already running before fork.
+        if let Some(session) = cloudapps::agent::session::read_session() {
+            let socket = std::path::Path::new(&session.socket_path);
+            if std::os::unix::net::UnixStream::connect(socket).is_ok() {
+                eprintln!("agent: already started (pid {})", session.pid);
+                process::exit(0);
+            }
+        }
+
+        // Clear CloudApps credentials from environment before fork.
+        // The child process will use the CloudAppsCredentials struct instead.
+        // SAFETY: Single-threaded context (before tokio runtime creation).
+        unsafe {
+            CloudAppsCredentials::clear_env();
+        }
 
         if let Err(e) = cloudapps::agent::ensure_socket_dir() {
             eprintln!("Error: failed to create socket directory: {}", e);
@@ -40,22 +63,14 @@ fn main() {
             socket_path,
             config_path,
             session_token.clone(),
-            *shared,
+            credentials,
         ) {
-            Ok((child_pid, socket_path)) => {
-                if *shared {
-                    eprintln!("agent started in shared mode, pid {}", child_pid);
-                    eprintln!(
-                        "session file: {}",
-                        cloudapps::agent::session::session_file_path().display()
-                    );
-                } else {
-                    cloudapps::agent::server::print_shell_vars(
-                        &socket_path,
-                        &session_token,
-                        child_pid,
-                    );
-                }
+            Ok((child_pid, _socket_path)) => {
+                eprintln!("agent started, pid {}", child_pid);
+                eprintln!(
+                    "session file: {}",
+                    cloudapps::agent::session::session_file_path().display()
+                );
                 process::exit(0);
             }
             Err(e) => {
@@ -68,14 +83,14 @@ fn main() {
     // Create tokio runtime for all other operations.
     let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
     rt.block_on(async {
-        if let Err(e) = run(cli).await {
+        if let Err(e) = run(cli, credentials).await {
             eprintln!("Error: {}", e);
             process::exit(e.exit_code());
         }
     });
 }
 
-async fn run(cli: Cli) -> Result<(), AppError> {
+async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError> {
     let command = match cli.command {
         Some(command) => command,
         None => {
@@ -87,7 +102,7 @@ async fn run(cli: Cli) -> Result<(), AppError> {
     // Handle agent subcommands.
     #[cfg(unix)]
     if let Commands::Agent { command: agent_cmd } = &command {
-        return handle_agent_command(agent_cmd).await;
+        return handle_agent_command(agent_cmd, credentials).await;
     }
 
     if cli.help_for_ai {
@@ -120,18 +135,18 @@ async fn run(cli: Cli) -> Result<(), AppError> {
     }
 
     // Direct execution: require API credentials.
-    let api_url = resolve_value(cli.api_url.as_deref(), "CLOUDAPPS_API_URL").ok_or_else(|| {
+    let api_url = credentials.api_url.as_ref().ok_or_else(|| {
         AppError::Config("API URL not set. Use --api-url or CLOUDAPPS_API_URL.".to_string())
     })?;
 
-    let token = std::env::var("CLOUDAPPS_API_TOKEN").map_err(|_| {
+    let token = credentials.api_token.as_ref().ok_or_else(|| {
         AppError::Auth(
             "API token not set. Set CLOUDAPPS_API_TOKEN environment variable.".to_string(),
         )
     })?;
 
-    let auth = TokenAuth::new(token)?;
-    let client = CloudAppsClient::new(api_url, Box::new(auth))?;
+    let auth = TokenAuth::new(token.clone())?;
+    let client = CloudAppsClient::new(api_url.clone(), Box::new(auth))?;
 
     match &command {
         Commands::Activities {
@@ -166,16 +181,26 @@ async fn run(cli: Cli) -> Result<(), AppError> {
 
 /// Handle agent subcommands (start foreground, stop, status).
 #[cfg(unix)]
-async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
+async fn handle_agent_command(
+    cmd: &AgentCommand,
+    credentials: CloudAppsCredentials,
+) -> Result<(), AppError> {
     match cmd {
         AgentCommand::Start {
             socket,
             config,
             foreground,
-            shared,
         } => {
             // Foreground mode (background is handled before tokio runtime).
-            assert!(*foreground, "background mode should be handled in main()");
+            debug_assert!(*foreground, "background mode should be handled in main()");
+
+            cloudapps::agent::validate_credentials(&credentials).map_err(AppError::Config)?;
+
+            // Clear CloudApps credentials from environment in foreground mode too.
+            // SAFETY: Called before agent server starts processing requests.
+            unsafe {
+                CloudAppsCredentials::clear_env();
+            }
 
             let session_token = cloudapps::agent::generate_token();
             let socket_path = socket.as_ref().map(PathBuf::from);
@@ -188,15 +213,11 @@ async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
             let actual_socket =
                 socket_path.unwrap_or_else(|| cloudapps::agent::pid_socket_path(pid));
 
-            if !shared {
-                cloudapps::agent::server::print_shell_vars(&actual_socket, &session_token, pid);
-            }
-
             cloudapps::agent::server::start(
                 Some(actual_socket),
                 config_path,
                 &session_token,
-                *shared,
+                credentials,
             )
             .await
             .map_err(|e| AppError::Config(format!("agent error: {}", e)))?;
@@ -206,26 +227,16 @@ async fn handle_agent_command(cmd: &AgentCommand) -> Result<(), AppError> {
         AgentCommand::Stop { socket, all } => {
             let msg = if *all {
                 cloudapps::agent::client::stop_all()?
+            } else if let Some(s) = socket {
+                cloudapps::agent::client::stop(&PathBuf::from(s))?
             } else {
-                let socket_path = socket
-                    .as_ref()
-                    .map(PathBuf::from)
-                    .unwrap_or_else(cloudapps::agent::resolve_socket_path);
-                cloudapps::agent::client::stop(&socket_path)?
+                cloudapps::agent::client::stop_from_session()?
             };
             println!("{}", msg);
             Ok(())
         }
-        AgentCommand::Status { socket, shared } => {
-            let msg = if *shared {
-                cloudapps::agent::client::status_shared().await?
-            } else {
-                let socket_path = socket
-                    .as_ref()
-                    .map(PathBuf::from)
-                    .unwrap_or_else(cloudapps::agent::resolve_socket_path);
-                cloudapps::agent::client::status(&socket_path).await?
-            };
+        AgentCommand::Status => {
+            let msg = cloudapps::agent::client::status().await?;
             println!("{}", msg);
             Ok(())
         }

@@ -25,7 +25,7 @@ pub struct Cli {
     pub command: Option<Commands>,
 
     /// API base URL
-    #[arg(long, env = "CLOUDAPPS_API_URL", global = true)]
+    #[arg(long, env = "CLOUDAPPS_API_URL", global = true, hide = true)]
     pub api_url: Option<String>,
 
     /// Output format
@@ -33,12 +33,13 @@ pub struct Cli {
         long,
         env = "CLOUDAPPS_OUTPUT_FORMAT",
         global = true,
-        default_value = "json"
+        default_value = "json",
+        hide = true
     )]
     pub output: OutputFormat,
 
     /// Output raw API response without extracting data
-    #[arg(long, global = true)]
+    #[arg(long, global = true, hide = true)]
     pub raw: bool,
 
     /// Enable verbose output
@@ -58,7 +59,7 @@ pub struct Cli {
     pub token: Option<String>,
 
     /// Skip agent auto-detection and use direct API mode
-    #[arg(long, global = true)]
+    #[arg(long, global = true, hide = true)]
     pub no_agent: bool,
 }
 
