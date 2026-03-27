@@ -42,10 +42,7 @@ fn wait_for_session_file(xdg_data_home: &Path) -> std::path::PathBuf {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    panic!(
-        "session file did not appear at {}",
-        session_file.display()
-    );
+    panic!("session file did not appear at {}", session_file.display());
 }
 
 /// Wait for the session file to be removed (agent stop needs a moment).
@@ -59,10 +56,7 @@ fn wait_for_session_removed(xdg_data_home: &Path) {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    panic!(
-        "session file was not removed at {}",
-        session_file.display()
-    );
+    panic!("session file was not removed at {}", session_file.display());
 }
 
 /// Stop agent if running (cleanup helper).
