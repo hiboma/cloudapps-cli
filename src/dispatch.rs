@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use crate::auth::token::TokenAuth;
 use crate::cli::{Cli, Commands};
 use crate::client::CloudAppsClient;
-use crate::config::resolve_value;
+use crate::config::CloudAppsCredentials;
 use crate::error::AppError;
 
 /// Global mutex to serialize stdout capture across concurrent requests.
@@ -19,7 +19,11 @@ fn stdout_mutex() -> &'static Mutex<()> {
 
 /// Dispatch a command from a CLI args vector (used by agent handler).
 /// Captures stdout output and returns it as a string.
-pub async fn dispatch_from_args(args: &[String]) -> Result<String, AppError> {
+/// Credentials are provided via `CloudAppsCredentials` instead of environment variables.
+pub async fn dispatch_from_args(
+    args: &[String],
+    credentials: &CloudAppsCredentials,
+) -> Result<String, AppError> {
     let cli = Cli::try_parse_from(args).map_err(|e| AppError::InvalidInput(e.to_string()))?;
 
     let command = match cli.command {
@@ -27,18 +31,18 @@ pub async fn dispatch_from_args(args: &[String]) -> Result<String, AppError> {
         None => return Ok(String::new()),
     };
 
-    let api_url = resolve_value(cli.api_url.as_deref(), "CLOUDAPPS_API_URL").ok_or_else(|| {
+    let api_url = credentials.api_url.as_ref().ok_or_else(|| {
         AppError::Config("API URL not set. Use --api-url or CLOUDAPPS_API_URL.".to_string())
     })?;
 
-    let token = std::env::var("CLOUDAPPS_API_TOKEN").map_err(|_| {
+    let token = credentials.api_token.as_ref().ok_or_else(|| {
         AppError::Auth(
             "API token not set. Set CLOUDAPPS_API_TOKEN environment variable.".to_string(),
         )
     })?;
 
-    let auth = TokenAuth::new(token)?;
-    let client = CloudAppsClient::new(api_url, Box::new(auth))?;
+    let auth = TokenAuth::new(token.clone())?;
+    let client = CloudAppsClient::new(api_url.clone(), Box::new(auth))?;
 
     dispatch_command(&client, &command, cli.output, cli.raw).await
 }
