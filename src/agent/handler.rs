@@ -95,8 +95,7 @@ pub async fn handle_request(
                 None,
                 AuditResult::Error(e.to_string()),
             ));
-            // Do not leak detailed error messages to the client.
-            AgentResponse::error(request_id, "command execution failed".to_string())
+            AgentResponse::error(request_id, e.to_string())
         }
     }
 }
