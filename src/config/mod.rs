@@ -50,14 +50,20 @@ fn non_empty(s: Option<String>) -> Option<String> {
 /// Load credentials from the first credentials.toml found.
 fn load_credentials_file() -> CredentialsFile {
     for path in credentials_search_paths() {
-        if let Ok(content) = std::fs::read_to_string(&path)
-            && let Ok(root) = toml::from_str::<CredentialsFileRoot>(&content)
-        {
-            let c = root.credentials;
-            return CredentialsFile {
-                api_url: non_empty(c.api_url),
-                api_token: non_empty(c.api_token),
-            };
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        match toml::from_str::<CredentialsFileRoot>(&content) {
+            Ok(root) => {
+                let c = root.credentials;
+                return CredentialsFile {
+                    api_url: non_empty(c.api_url),
+                    api_token: non_empty(c.api_token),
+                };
+            }
+            Err(e) => {
+                eprintln!("warning: failed to parse {}: {}", path.display(), e);
+            }
         }
     }
     CredentialsFile::default()
@@ -225,8 +231,29 @@ mod tests {
         }
     }
 
+    /// Helper to isolate tests from the user's real credentials.toml by
+    /// pointing HOME and XDG_CONFIG_HOME to a temporary directory.
+    unsafe fn isolate_credentials_file(tmpdir: &std::path::Path) {
+        unsafe {
+            std::env::set_var("HOME", tmpdir);
+            std::env::set_var("XDG_CONFIG_HOME", tmpdir.join(".config"));
+        }
+    }
+
+    /// Restore HOME and XDG_CONFIG_HOME after test isolation.
+    unsafe fn restore_credentials_file_isolation() {
+        unsafe {
+            std::env::remove_var("XDG_CONFIG_HOME");
+            if let Some(home) = option_env!("HOME") {
+                std::env::set_var("HOME", home);
+            }
+        }
+    }
+
     #[test]
     fn test_credentials_resolve_cli_overrides_env() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        unsafe { isolate_credentials_file(tmpdir.path()) };
         unsafe { clear_cloudapps_env() };
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
@@ -234,10 +261,13 @@ mod tests {
         let creds = CloudAppsCredentials::resolve(Some("https://cli.example.com"));
         assert_eq!(creds.api_url.as_deref(), Some("https://cli.example.com"));
         unsafe { clear_cloudapps_env() };
+        unsafe { restore_credentials_file_isolation() };
     }
 
     #[test]
     fn test_credentials_resolve_env_fallback() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        unsafe { isolate_credentials_file(tmpdir.path()) };
         unsafe { clear_cloudapps_env() };
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
@@ -247,14 +277,18 @@ mod tests {
         assert_eq!(creds.api_url.as_deref(), Some("https://env.example.com"));
         assert_eq!(creds.api_token.as_deref(), Some("env-token"));
         unsafe { clear_cloudapps_env() };
+        unsafe { restore_credentials_file_isolation() };
     }
 
     #[test]
     fn test_credentials_resolve_empty() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        unsafe { isolate_credentials_file(tmpdir.path()) };
         unsafe { clear_cloudapps_env() };
         let creds = CloudAppsCredentials::resolve(None);
         assert!(creds.api_url.is_none());
         assert!(creds.api_token.is_none());
+        unsafe { restore_credentials_file_isolation() };
     }
 
     #[test]
@@ -318,6 +352,8 @@ api_token = "toml-token"
 
     #[test]
     fn test_credentials_resolve_then_clear_env() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        unsafe { isolate_credentials_file(tmpdir.path()) };
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://test.example.com");
             std::env::set_var("CLOUDAPPS_API_TOKEN", "test-token");
@@ -338,5 +374,6 @@ api_token = "toml-token"
         // But env vars are gone
         assert!(std::env::var("CLOUDAPPS_API_URL").is_err());
         assert!(std::env::var("CLOUDAPPS_API_TOKEN").is_err());
+        unsafe { restore_credentials_file_isolation() };
     }
 }
