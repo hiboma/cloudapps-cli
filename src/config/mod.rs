@@ -81,10 +81,10 @@ impl CloudAppsCredentials {
 
         let api_url = cli_api_url
             .map(String::from)
-            .or_else(|| std::env::var("CLOUDAPPS_API_URL").ok())
+            .or_else(|| non_empty(std::env::var("CLOUDAPPS_API_URL").ok()))
             .or(file.api_url);
 
-        let api_token = std::env::var("CLOUDAPPS_API_TOKEN").ok().or(file.api_token);
+        let api_token = non_empty(std::env::var("CLOUDAPPS_API_TOKEN").ok()).or(file.api_token);
 
         Self { api_url, api_token }
     }
