@@ -28,24 +28,59 @@ cargo install --git https://github.com/hiboma/cloudapps-cli.git
 
 ## Configuration
 
-### API Token
+### Environment Variables
 
 Set your API token via environment variable or CLI options.
-
-**Environment variable:**
 
 ```bash
 export CLOUDAPPS_API_TOKEN="your-api-token"
 export CLOUDAPPS_API_URL="https://your-tenant.us3.portal.cloudappsecurity.com"
 ```
 
-**CLI options:**
+CLI options (`--api-url`) override environment variables.
 
-```bash
-cloudapps-cli --api-url "https://..." alerts list
+> **Note:** `CLOUDAPPS_API_TOKEN` has no CLI flag to prevent exposure in process lists. Use environment variables, `.env` files, or `credentials.toml`. Ensure these files have restrictive permissions (`chmod 600`).
+
+### Credentials File (TOML)
+
+You can configure credentials using a `credentials.toml` file. The first file found is used (files are not merged):
+
+1. `./.cloudapps-credentials.toml` (project-local)
+2. `$XDG_CONFIG_HOME/cloudapps-cli/credentials.toml` (default: `~/.config/cloudapps-cli/credentials.toml`)
+
+Priority: CLI arguments > environment variables > credentials.toml
+
+Template:
+
+```toml
+# cloudapps-cli credentials configuration
+#
+# Security notes:
+#   - This file contains sensitive information
+#   - Set file permissions to 0600: chmod 600 credentials.toml
+#   - Add to .gitignore to prevent committing to the repository
+
+[credentials]
+# Microsoft Defender for Cloud Apps API token (required)
+api_token = ""
+
+# API base URL (required)
+# e.g. https://your-tenant.us3.portal.cloudappsecurity.com
+api_url = ""
 ```
 
-Priority order for API URL: CLI option > environment variable.
+Setup:
+
+```bash
+# Global configuration (XDG Base Directory)
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/cloudapps-cli"
+# Edit and save credentials.toml, then:
+chmod 600 "${XDG_CONFIG_HOME:-$HOME/.config}/cloudapps-cli/credentials.toml"
+
+# Project-local configuration
+# Edit and save .cloudapps-credentials.toml, then:
+chmod 600 .cloudapps-credentials.toml
+```
 
 ## Usage
 
