@@ -43,7 +43,7 @@ CLI options (`--api-url`) override environment variables.
 
 ### Credentials File (TOML)
 
-You can configure credentials using a `credentials.toml` file. Files are loaded in the following order:
+You can configure credentials using a `credentials.toml` file. The first file found is used (files are not merged):
 
 1. `./.cloudapps-credentials.toml` (project-local)
 2. `$XDG_CONFIG_HOME/cloudapps-cli/credentials.toml` (default: `~/.config/cloudapps-cli/credentials.toml`)

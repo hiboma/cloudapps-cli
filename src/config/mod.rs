@@ -58,16 +58,23 @@ fn non_empty(s: Option<String>) -> Option<String> {
 }
 
 /// Load credentials from the first credentials.toml found in the given search paths.
+/// Only the first file found is used; subsequent paths are not merged.
 fn load_credentials_from_paths(paths: &[PathBuf]) -> CredentialsFile {
     for path in paths {
-        if let Ok(content) = std::fs::read_to_string(path)
-            && let Ok(root) = toml::from_str::<CredentialsFileRoot>(&content)
-        {
-            let c = root.credentials;
-            return CredentialsFile {
-                api_url: non_empty(c.api_url),
-                api_token: non_empty(c.api_token),
-            };
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        match toml::from_str::<CredentialsFileRoot>(&content) {
+            Ok(root) => {
+                let c = root.credentials;
+                return CredentialsFile {
+                    api_url: non_empty(c.api_url),
+                    api_token: non_empty(c.api_token),
+                };
+            }
+            Err(e) => {
+                eprintln!("warning: failed to parse {}: {}", path.display(), e);
+            }
         }
     }
     CredentialsFile::default()
@@ -324,6 +331,117 @@ api_token = "toml-token"
             Some("value".to_string())
         );
         assert_eq!(non_empty(None), None);
+    }
+
+    #[test]
+    fn test_resolve_with_toml_file() {
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_url = "https://toml.example.com"
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let creds = CloudAppsCredentials::resolve_with_paths(None, &[toml_path]);
+        assert_eq!(creds.api_url.as_deref(), Some("https://toml.example.com"));
+        assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
+    }
+
+    #[test]
+    fn test_env_overrides_toml_file() {
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_url = "https://toml.example.com"
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        unsafe {
+            std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
+            std::env::set_var("CLOUDAPPS_API_TOKEN", "env-token");
+        }
+        let creds = CloudAppsCredentials::resolve_with_paths(None, &[toml_path]);
+        assert_eq!(creds.api_url.as_deref(), Some("https://env.example.com"));
+        assert_eq!(creds.api_token.as_deref(), Some("env-token"));
+        unsafe { clear_cloudapps_env() };
+    }
+
+    #[test]
+    fn test_cli_overrides_toml_file() {
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_url = "https://toml.example.com"
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let creds =
+            CloudAppsCredentials::resolve_with_paths(Some("https://cli.example.com"), &[toml_path]);
+        assert_eq!(creds.api_url.as_deref(), Some("https://cli.example.com"));
+        // api_token has no CLI flag, so TOML value is used
+        assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
+        unsafe { clear_cloudapps_env() };
+    }
+
+    #[test]
+    fn test_load_credentials_nonexistent_file() {
+        let paths = vec![PathBuf::from("/nonexistent/credentials.toml")];
+        let file = load_credentials_from_paths(&paths);
+        assert!(file.api_url.is_none());
+        assert!(file.api_token.is_none());
+    }
+
+    #[test]
+    fn test_load_credentials_invalid_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(&toml_path, "this is not valid toml {{{{").unwrap();
+        let file = load_credentials_from_paths(&[toml_path]);
+        assert!(file.api_url.is_none());
+        assert!(file.api_token.is_none());
+    }
+
+    #[test]
+    fn test_first_file_takes_priority() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("first.toml");
+        let second = dir.path().join("second.toml");
+        std::fs::write(
+            &first,
+            r#"
+[credentials]
+api_url = "https://first.example.com"
+api_token = "first-token"
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &second,
+            r#"
+[credentials]
+api_url = "https://second.example.com"
+api_token = "second-token"
+"#,
+        )
+        .unwrap();
+        let file = load_credentials_from_paths(&[first, second]);
+        assert_eq!(file.api_url.as_deref(), Some("https://first.example.com"));
+        assert_eq!(file.api_token.as_deref(), Some("first-token"));
     }
 
     #[test]
