@@ -70,12 +70,18 @@ pub async fn status() -> Result<String, AppError> {
         Some(session) => {
             let socket_path = std::path::PathBuf::from(&session.socket_path);
             let running = UnixStream::connect(&socket_path).await.is_ok();
-            let status = serde_json::json!({
+            let mut status = serde_json::json!({
                 "running": running,
                 "pid": session.pid,
                 "socket_path": session.socket_path,
                 "session_file": session_path.display().to_string(),
             });
+            if !running {
+                status["stale"] = serde_json::json!(true);
+                status["hint"] = serde_json::json!(
+                    "Agent is not running. Run 'agent stop' to clean up stale session."
+                );
+            }
             Ok(serde_json::to_string_pretty(&status).unwrap())
         }
         None => {
@@ -101,10 +107,14 @@ pub fn stop_from_session() -> Result<String, AppError> {
 pub fn stop(socket_path: &Path) -> Result<String, AppError> {
     let pid_file = crate::agent::pid_file_path(socket_path);
     let Some(pid) = crate::agent::read_pid_file(&pid_file) else {
-        return Err(AppError::Config(format!(
-            "No PID file found for {}",
+        // PID file is missing — the agent is already stopped.
+        // Clean up stale session file and socket if they remain.
+        cleanup_session_file(socket_path);
+        crate::agent::cleanup_files(socket_path);
+        return Ok(format!(
+            "Agent is not running (cleaned up stale session for {})",
             socket_path.display()
-        )));
+        ));
     };
 
     // SAFETY: kill() with SIGTERM is safe when targeting a known PID.
@@ -116,10 +126,20 @@ pub fn stop(socket_path: &Path) -> Result<String, AppError> {
         Ok(format!("Stopped agent (PID {})", pid))
     } else {
         let err = std::io::Error::last_os_error();
-        Err(AppError::Config(format!(
-            "Failed to stop agent (PID {}): {}",
-            pid, err
-        )))
+        if err.raw_os_error() == Some(libc::ESRCH) {
+            // Process does not exist — already stopped. Clean up stale files.
+            cleanup_session_file(socket_path);
+            crate::agent::cleanup_files(socket_path);
+            Ok(format!(
+                "Agent (PID {}) is not running (cleaned up stale files)",
+                pid
+            ))
+        } else {
+            Err(AppError::Config(format!(
+                "Failed to stop agent (PID {}): {}",
+                pid, err
+            )))
+        }
     }
 }
 
