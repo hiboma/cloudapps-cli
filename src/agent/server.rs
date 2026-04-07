@@ -328,7 +328,7 @@ async fn handle_connection(
         match get_peer_uid(&stream) {
             Ok(uid) => {
                 if !verify_peer_uid(uid) {
-                    eprintln!("agent: rejected connection from UID {}", uid);
+                    eprintln!("agent: rejected connection from unauthorized UID");
                     return Ok(());
                 }
             }
