@@ -141,18 +141,19 @@ impl AuditLog {
 
     /// Log an audit entry and print to stderr.
     pub fn log(&self, entry: AuditEntry) {
+        let redacted = redact_uid(entry.peer_uid);
         let msg = match &entry.result {
             AuditResult::Allowed => format!(
-                "audit: {} {} {} ALLOWED (uid={:?})",
-                entry.timestamp, entry.command, entry.action, entry.peer_uid
+                "audit: {} {} {} ALLOWED ({})",
+                entry.timestamp, entry.command, entry.action, redacted
             ),
             AuditResult::Denied(reason) => format!(
-                "audit: {} {} {} DENIED: {} (uid={:?})",
-                entry.timestamp, entry.command, entry.action, reason, entry.peer_uid
+                "audit: {} {} {} DENIED: {} ({})",
+                entry.timestamp, entry.command, entry.action, reason, redacted
             ),
             AuditResult::Error(err) => format!(
-                "audit: {} {} {} ERROR: {} (uid={:?})",
-                entry.timestamp, entry.command, entry.action, err, entry.peer_uid
+                "audit: {} {} {} ERROR: {} ({})",
+                entry.timestamp, entry.command, entry.action, err, redacted
             ),
         };
         eprintln!("{}", msg);
@@ -176,6 +177,15 @@ impl AuditLog {
             peer_uid,
             result,
         }
+    }
+}
+
+/// Redact a UID value for safe logging.
+/// Returns "uid=<redacted>" for Some(uid) or "uid=none" for None.
+pub fn redact_uid(uid: Option<u32>) -> String {
+    match uid {
+        Some(_) => "uid=<redacted>".to_string(),
+        None => "uid=none".to_string(),
     }
 }
 
@@ -324,5 +334,12 @@ mod tests {
         assert_eq!(config.rate_limit.requests_per_minute, 60);
         assert_eq!(config.watchdog.check_interval_secs, 30);
         assert_eq!(config.whitelist.allowed_commands.len(), 5);
+    }
+
+    #[test]
+    fn test_redact_uid() {
+        assert_eq!(redact_uid(Some(1000)), "uid=<redacted>");
+        assert_eq!(redact_uid(Some(0)), "uid=<redacted>");
+        assert_eq!(redact_uid(None), "uid=none");
     }
 }
