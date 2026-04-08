@@ -1,0 +1,35 @@
+[package]
+name = "cloudapps-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.cloudapps]
+path = ".."
+
+[[bin]]
+name = "fuzz_agent_protocol"
+path = "fuzz_targets/fuzz_agent_protocol.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_validate_command"
+path = "fuzz_targets/fuzz_validate_command.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_model_parsing"
+path = "fuzz_targets/fuzz_model_parsing.rs"
+test = false
+doc = false
+bench = false
