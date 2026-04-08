@@ -1,6 +1,6 @@
 mod common;
 
-use cloudapps::cli::policies::{FetchArgs, ListArgs, PoliciesCommand, PolicyType};
+use cloudapps::cli::policies::{FetchArgs, PoliciesCommand, PolicyType};
 use cloudapps::client::CloudAppsClient;
 use cloudapps::commands::policies;
 use cloudapps::output::OutputFormat;
@@ -85,7 +85,7 @@ async fn test_policies_handle_list() {
         .await;
 
     let client = create_client(&server.url());
-    let command = PoliciesCommand::List(ListArgs { filter: None });
+    let command = PoliciesCommand::List;
 
     let result = policies::handle(&client, &command, OutputFormat::Json, false).await;
     assert!(result.is_ok());
@@ -105,7 +105,7 @@ async fn test_policies_handle_list_table_output() {
         .await;
 
     let client = create_client(&server.url());
-    let command = PoliciesCommand::List(ListArgs { filter: None });
+    let command = PoliciesCommand::List;
 
     let result = policies::handle(&client, &command, OutputFormat::Table, false).await;
     assert!(result.is_ok());

@@ -3,16 +3,9 @@ use clap::{Args, Subcommand, ValueEnum};
 #[derive(Subcommand)]
 pub enum PoliciesCommand {
     /// List all policies
-    List(ListArgs),
+    List,
     /// Fetch a single policy by type and ID
     Fetch(FetchArgs),
-}
-
-#[derive(Args)]
-pub struct ListArgs {
-    /// Output format filter (not sent to API, just for completeness)
-    #[arg(long)]
-    pub filter: Option<String>,
 }
 
 #[derive(Args)]

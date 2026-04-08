@@ -7,26 +7,19 @@ pub async fn handle(
     client: &CloudAppsClient,
     command: &PoliciesCommand,
     output_format: OutputFormat,
-    raw: bool,
+    _raw: bool,
 ) -> Result<(), AppError> {
     match command {
-        PoliciesCommand::List(args) => list(client, args, output_format, raw).await,
+        PoliciesCommand::List => list(client, output_format).await,
         PoliciesCommand::Fetch(args) => fetch(client, args, output_format).await,
     }
 }
 
-async fn list(
-    client: &CloudAppsClient,
-    _args: &crate::cli::policies::ListArgs,
-    output_format: OutputFormat,
-    raw: bool,
-) -> Result<(), AppError> {
+async fn list(client: &CloudAppsClient, output_format: OutputFormat) -> Result<(), AppError> {
     let resp: serde_json::Value = client.get("/api/v1/policies/").await?.json().await?;
 
     match output_format {
         OutputFormat::Json | OutputFormat::JsonMinify => {
-            // The policies endpoint returns a JSON array directly, not wrapped in {data: [...]}.
-            let _ = raw;
             crate::output::json::print_json_raw(&resp, output_format.is_minify())
         }
         OutputFormat::Table => {
@@ -90,9 +83,6 @@ async fn fetch(
         OutputFormat::Json | OutputFormat::JsonMinify => {
             crate::output::json::print_json_raw(&resp, output_format.is_minify())
         }
-        OutputFormat::Table => {
-            crate::output::json::print_json_raw(&resp, false)?;
-            Ok(())
-        }
+        OutputFormat::Table => crate::output::json::print_json_raw(&resp, false),
     }
 }
