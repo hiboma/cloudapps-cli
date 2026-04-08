@@ -9,6 +9,8 @@ pub const DATA_ENRICHMENT_HELP: &str =
 #[cfg(unix)]
 pub const AGENT_HELP: &str = include_str!("../docs/specifications/16-agent-mode.md");
 
+pub const POLICIES_HELP: &str = include_str!("../docs/specifications/17-resources-policies.md");
+
 pub fn get_help(command: &Commands) -> &'static str {
     match command {
         Commands::Activities { .. } => ACTIVITIES_HELP,
@@ -16,6 +18,7 @@ pub fn get_help(command: &Commands) -> &'static str {
         Commands::Entities { .. } => ENTITIES_HELP,
         Commands::Files { .. } => FILES_HELP,
         Commands::DataEnrichment { .. } => DATA_ENRICHMENT_HELP,
+        Commands::Policies { .. } => POLICIES_HELP,
         #[cfg(unix)]
         Commands::Agent { .. } => AGENT_HELP,
     }

@@ -1,0 +1,15 @@
+{
+  "_id": "pol-xxxx-1",
+  "_tid": 100000001,
+  "name": "Mass download by a single user",
+  "policyType": "AUDIT",
+  "enabled": true,
+  "alertSeverity": [0, "LOW"],
+  "description": "Detects mass file downloads by a single user",
+  "consoleFilters": "{\"actionType\":{\"contains\":[\"FileDownload\"]}}",
+  "enableAlerts": true,
+  "threshold": 1,
+  "windowSizeInMillis": 300000,
+  "lastModified": 1700003600000,
+  "lastUserModified": 1700003600000
+}

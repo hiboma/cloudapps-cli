@@ -1,0 +1,35 @@
+[
+  {
+    "_id": "pol-xxxx-1",
+    "_tid": 100000001,
+    "name": "Mass download by a single user",
+    "policyType": "AUDIT",
+    "enabled": true,
+    "alertSeverity": [0, "LOW"],
+    "description": "Detects mass file downloads by a single user",
+    "threshold": 1,
+    "windowSizeInMillis": 300000
+  },
+  {
+    "_id": "pol-xxxx-2",
+    "_tid": 100000001,
+    "name": "Impossible travel detection",
+    "policyType": "ANOMALY_DETECTION",
+    "enabled": true,
+    "alertSeverity": [2, "HIGH"],
+    "description": "Detects impossible travel between user locations",
+    "threshold": 1,
+    "windowSizeInMillis": 1
+  },
+  {
+    "_id": "pol-xxxx-3",
+    "_tid": 100000001,
+    "name": "Malware detection",
+    "policyType": "FILE",
+    "enabled": false,
+    "alertSeverity": [0, "LOW"],
+    "description": "Detects known malware patterns in uploaded files",
+    "threshold": 1,
+    "windowSizeInMillis": 1
+  }
+]
