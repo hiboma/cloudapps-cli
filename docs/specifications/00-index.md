@@ -20,6 +20,7 @@
 | 14  | [Pre-Release Checklist](14-pre-release-checklist.md) | Security, privacy, quality checks before public release |
 | 15  | [UX Improvements](15-ux-improvements.md)             | CLI usability improvements over raw API wrapping        |
 | 16  | [Agent Mode](16-agent-mode.md)                       | Credential isolation via ssh-agent model                |
+| 17  | [Policies](17-resources-policies.md)                 | Policies resource API and CLI commands (undocumented API)|
 
 ## API Reference
 
