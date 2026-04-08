@@ -3,3 +3,4 @@ pub mod alerts;
 pub mod data_enrichment;
 pub mod entities;
 pub mod files;
+pub mod policies;

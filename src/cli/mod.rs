@@ -5,6 +5,7 @@ pub mod alerts;
 pub mod data_enrichment;
 pub mod entities;
 pub mod files;
+pub mod policies;
 
 use clap::{Parser, Subcommand};
 
@@ -117,6 +118,16 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<data_enrichment::DataEnrichmentCommand>,
     },
+    /// Manage policies (undocumented API)
+    #[command(
+        visible_alias = "policy",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
+    Policies {
+        #[command(subcommand)]
+        command: Option<policies::PoliciesCommand>,
+    },
 
     // -- System --
     /// Manage the credential isolation agent (Unix only)
@@ -136,6 +147,7 @@ impl Commands {
             Commands::Entities { .. } => "entities",
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
+            Commands::Policies { .. } => "policies",
             #[cfg(unix)]
             Commands::Agent { .. } => "agent",
         }

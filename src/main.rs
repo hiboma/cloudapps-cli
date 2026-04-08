@@ -167,6 +167,9 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
             cloudapps::commands::data_enrichment::handle(&client, command, cli.output, cli.raw)
                 .await
         }
+        Commands::Policies {
+            command: Some(command),
+        } => cloudapps::commands::policies::handle(&client, command, cli.output, cli.raw).await,
         _ => {
             Cli::command()
                 .find_subcommand(command.name())
