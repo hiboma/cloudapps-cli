@@ -18,7 +18,7 @@
   - `CompletionShell` enum（`ValueEnum` 派生）
   - `Commands::Completion { shell }` バリアント（`hide = true`）
 - `src/main.rs`
-  - `run()` の早い段階で `Commands::Completion` を検知し、認証情報の解決や agent ルーティングを行わずに `print_completion()` を呼び出します。
+  - `run()` の早い段階で `Commands::Completion` を検知し、API 認証情報の要求や agent ルーティングを行わずに `print_completion()` を呼び出します。`CloudAppsCredentials::resolve` 自体は `main()` で無条件に走りますが、副作用は環境変数と設定ファイルの読み取りのみで、completion 生成にはその値を渡しません。
   - `print_completion()` は `clap_complete::generate` を対応 shell 向けに呼び出します。
 - `src/help_for_ai.rs`
   - `Commands::Completion` 用の簡易 help 文字列を追加しています。
