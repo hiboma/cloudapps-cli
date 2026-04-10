@@ -205,6 +205,31 @@ Use `--limit` and `--skip` for manual pagination, or `--all` to fetch all record
 cloudapps-cli alerts list --all
 ```
 
+## Shell Completion
+
+`cloudapps-cli completion <shell>` は補完スクリプトを標準出力に書き出します。対応シェルは `bash`、`zsh`、`fish`、`powershell`、`elvish` です。
+
+### zsh
+
+```zsh
+# ユーザー専用の fpath に保存する例
+cloudapps-cli completion zsh > "${fpath[1]}/_cloudapps-cli"
+# 反映
+autoload -U compinit && compinit
+```
+
+### bash
+
+```bash
+cloudapps-cli completion bash > /usr/local/etc/bash_completion.d/cloudapps-cli
+```
+
+### fish
+
+```fish
+cloudapps-cli completion fish > ~/.config/fish/completions/cloudapps-cli.fish
+```
+
 ## Development
 
 ```bash

@@ -21,6 +21,7 @@
 | 15  | [UX Improvements](15-ux-improvements.md)             | CLI usability improvements over raw API wrapping        |
 | 16  | [Agent Mode](16-agent-mode.md)                       | Credential isolation via ssh-agent model                |
 | 17  | [Policies](17-resources-policies.md)                 | Policies resource API and CLI commands (undocumented API)|
+| 18  | [Shell Completion](18-shell-completion.md)           | Shell completion generation (bash, zsh, fish, etc.)     |
 
 ## API Reference
 
