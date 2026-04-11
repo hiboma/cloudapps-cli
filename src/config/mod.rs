@@ -189,6 +189,16 @@ unsafe fn overwrite_environ_value(name: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    // Serializes tests that touch CLOUDAPPS_* environment variables.
+    // std::env is process-global; without this, parallel tests race and
+    // overwrite each other's values, causing flaky failures.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn env_lock() -> MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn test_resolve_value_priority() {
@@ -244,6 +254,7 @@ mod tests {
 
     #[test]
     fn test_credentials_resolve_cli_overrides_env() {
+        let _guard = env_lock();
         unsafe { clear_cloudapps_env() };
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
@@ -255,6 +266,7 @@ mod tests {
 
     #[test]
     fn test_credentials_resolve_env_fallback() {
+        let _guard = env_lock();
         unsafe { clear_cloudapps_env() };
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
@@ -268,6 +280,7 @@ mod tests {
 
     #[test]
     fn test_credentials_resolve_empty() {
+        let _guard = env_lock();
         unsafe { clear_cloudapps_env() };
         let creds = resolve_without_file(None);
         assert!(creds.api_url.is_none());
@@ -276,6 +289,7 @@ mod tests {
 
     #[test]
     fn test_credentials_clear_env() {
+        let _guard = env_lock();
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://test.example.com");
             std::env::set_var("CLOUDAPPS_API_TOKEN", "test-token");
@@ -335,6 +349,7 @@ api_token = "toml-token"
 
     #[test]
     fn test_resolve_with_toml_file() {
+        let _guard = env_lock();
         unsafe { clear_cloudapps_env() };
         let dir = tempfile::tempdir().unwrap();
         let toml_path = dir.path().join("credentials.toml");
@@ -354,6 +369,7 @@ api_token = "toml-token"
 
     #[test]
     fn test_env_overrides_toml_file() {
+        let _guard = env_lock();
         unsafe { clear_cloudapps_env() };
         let dir = tempfile::tempdir().unwrap();
         let toml_path = dir.path().join("credentials.toml");
@@ -378,6 +394,7 @@ api_token = "toml-token"
 
     #[test]
     fn test_cli_overrides_toml_file() {
+        let _guard = env_lock();
         unsafe { clear_cloudapps_env() };
         let dir = tempfile::tempdir().unwrap();
         let toml_path = dir.path().join("credentials.toml");
@@ -446,6 +463,7 @@ api_token = "second-token"
 
     #[test]
     fn test_credentials_resolve_then_clear_env() {
+        let _guard = env_lock();
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://test.example.com");
             std::env::set_var("CLOUDAPPS_API_TOKEN", "test-token");
