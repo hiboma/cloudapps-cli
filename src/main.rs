@@ -1,11 +1,13 @@
 use clap::{CommandFactory, Parser};
+use clap_complete::{generate, shells};
+use std::io;
 use std::path::PathBuf;
 use std::process;
 
 use cloudapps::auth::token::TokenAuth;
 #[cfg(unix)]
 use cloudapps::cli::agent::AgentCommand;
-use cloudapps::cli::{Cli, Commands};
+use cloudapps::cli::{Cli, Commands, CompletionShell};
 use cloudapps::client::CloudAppsClient;
 use cloudapps::config::CloudAppsCredentials;
 use cloudapps::error::AppError;
@@ -99,6 +101,12 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
         }
     };
 
+    // Handle completion generation (no credentials required).
+    if let Commands::Completion { shell } = &command {
+        print_completion(*shell);
+        return Ok(());
+    }
+
     // Handle agent subcommands.
     #[cfg(unix)]
     if let Commands::Agent { command: agent_cmd } = &command {
@@ -167,6 +175,9 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
             cloudapps::commands::data_enrichment::handle(&client, command, cli.output, cli.raw)
                 .await
         }
+        Commands::Policies {
+            command: Some(command),
+        } => cloudapps::commands::policies::handle(&client, command, cli.output, cli.raw).await,
         _ => {
             Cli::command()
                 .find_subcommand(command.name())
@@ -176,6 +187,19 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
                 .ok();
             Ok(())
         }
+    }
+}
+
+fn print_completion(shell: CompletionShell) {
+    let mut cmd = Cli::command();
+    let name = cmd.get_name().to_string();
+    let mut stdout = io::stdout();
+    match shell {
+        CompletionShell::Bash => generate(shells::Bash, &mut cmd, name, &mut stdout),
+        CompletionShell::Zsh => generate(shells::Zsh, &mut cmd, name, &mut stdout),
+        CompletionShell::Fish => generate(shells::Fish, &mut cmd, name, &mut stdout),
+        CompletionShell::PowerShell => generate(shells::PowerShell, &mut cmd, name, &mut stdout),
+        CompletionShell::Elvish => generate(shells::Elvish, &mut cmd, name, &mut stdout),
     }
 }
 

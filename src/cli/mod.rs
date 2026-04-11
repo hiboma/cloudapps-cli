@@ -5,10 +5,21 @@ pub mod alerts;
 pub mod data_enrichment;
 pub mod entities;
 pub mod files;
+pub mod policies;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::output::OutputFormat;
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+pub enum CompletionShell {
+    Bash,
+    Zsh,
+    Fish,
+    #[value(name = "powershell")]
+    PowerShell,
+    Elvish,
+}
 
 #[derive(Parser)]
 #[command(
@@ -18,7 +29,7 @@ use crate::output::OutputFormat;
     subcommand_required = false,
     arg_required_else_help = true,
     subcommand_help_heading = "Resources",
-    after_help = "System:\n  agent  Manage the credential isolation agent (Unix only)"
+    after_help = "System:\n  agent       Manage the credential isolation agent (Unix only)\n  completion  Generate shell completion script"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -117,6 +128,16 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<data_enrichment::DataEnrichmentCommand>,
     },
+    /// Manage policies (undocumented API)
+    #[command(
+        visible_alias = "policy",
+        subcommand_required = false,
+        arg_required_else_help = true
+    )]
+    Policies {
+        #[command(subcommand)]
+        command: Option<policies::PoliciesCommand>,
+    },
 
     // -- System --
     /// Manage the credential isolation agent (Unix only)
@@ -125,6 +146,14 @@ pub enum Commands {
     Agent {
         #[command(subcommand)]
         command: agent::AgentCommand,
+    },
+
+    /// Generate shell completion script
+    #[command(hide = true)]
+    Completion {
+        /// Target shell
+        #[arg(value_enum)]
+        shell: CompletionShell,
     },
 }
 
@@ -136,8 +165,10 @@ impl Commands {
             Commands::Entities { .. } => "entities",
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
+            Commands::Policies { .. } => "policies",
             #[cfg(unix)]
             Commands::Agent { .. } => "agent",
+            Commands::Completion { .. } => "completion",
         }
     }
 }

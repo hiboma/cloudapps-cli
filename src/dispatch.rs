@@ -78,6 +78,9 @@ async fn dispatch_command(
         Commands::DataEnrichment { command: Some(cmd) } => {
             crate::commands::data_enrichment::handle(client, cmd, output_format, raw).await
         }
+        Commands::Policies { command: Some(cmd) } => {
+            crate::commands::policies::handle(client, cmd, output_format, raw).await
+        }
         _ => Ok(()),
     };
 
