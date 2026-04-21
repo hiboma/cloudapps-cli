@@ -25,6 +25,9 @@ pub enum CredentialsCommand {
     Delete {
         #[arg(value_enum)]
         field: CredentialField,
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        yes: bool,
     },
     /// Show whether credentials are stored (never prints the value).
     Status,
