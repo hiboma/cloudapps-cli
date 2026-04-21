@@ -15,8 +15,37 @@ use cloudapps::error::AppError;
 fn main() {
     let cli = Cli::parse();
 
+    // For subcommands that do not talk to the API (`credentials`,
+    // `completion`), skip credential resolution entirely. `resolve()`
+    // consults the OS credential store, which on macOS may prompt or
+    // fail with an ACL error; letting that output leak above
+    // `credentials status` would be confusing since `status` is
+    // precisely how the user inspects the store.
+    let skips_resolve = matches!(
+        cli.command,
+        Some(Commands::Credentials { .. }) | Some(Commands::Completion { .. })
+    );
+
     // Resolve credentials early (before fork).
-    let credentials = CloudAppsCredentials::resolve(cli.api_url.as_deref());
+    let credentials = if skips_resolve {
+        CloudAppsCredentials::default()
+    } else {
+        CloudAppsCredentials::resolve(cli.api_url.as_deref())
+    };
+
+    // Scrub CLOUDAPPS_* from this process's environment immediately after
+    // resolution. Doing it here — instead of only in the agent-fork path —
+    // means direct-API invocations also shed the secret from the kernel's
+    // process environment snapshot (visible via `ps -E` /
+    // `/proc/<pid>/environ`) for the lifetime of the process. Runs while
+    // we are still single-threaded (before tokio runtime creation).
+    //
+    // SAFETY: Single-threaded context (before tokio runtime creation).
+    if !skips_resolve {
+        unsafe {
+            CloudAppsCredentials::clear_env();
+        }
+    }
 
     // Handle agent start (fork) before creating tokio runtime.
     // fork() is unsafe in multi-threaded processes, so we must do it here.
@@ -49,12 +78,8 @@ fn main() {
             }
         }
 
-        // Clear CloudApps credentials from environment before fork.
-        // The child process will use the CloudAppsCredentials struct instead.
-        // SAFETY: Single-threaded context (before tokio runtime creation).
-        unsafe {
-            CloudAppsCredentials::clear_env();
-        }
+        // (env was already scrubbed in main() right after resolve();
+        // no clear_env call needed here.)
 
         if let Err(e) = cloudapps::agent::ensure_socket_dir() {
             eprintln!("Error: failed to create socket directory: {}", e);
@@ -105,6 +130,11 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
     if let Commands::Completion { shell } = &command {
         print_completion(*shell);
         return Ok(());
+    }
+
+    // Handle credentials subcommand (does not talk to the API).
+    if let Commands::Credentials { command: creds_cmd } = &command {
+        return cloudapps::commands::credentials::handle(creds_cmd);
     }
 
     // Handle agent subcommands.
@@ -220,11 +250,8 @@ async fn handle_agent_command(
 
             cloudapps::agent::validate_credentials(&credentials).map_err(AppError::Config)?;
 
-            // Clear CloudApps credentials from environment in foreground mode too.
-            // SAFETY: Called before agent server starts processing requests.
-            unsafe {
-                CloudAppsCredentials::clear_env();
-            }
+            // (env was already scrubbed in main() before tokio runtime
+            // creation; no clear_env call needed here.)
 
             let session_token = cloudapps::agent::generate_token();
             let socket_path = socket.as_ref().map(PathBuf::from);
