@@ -623,4 +623,86 @@ api_token = "toml-token"
         let creds = CloudAppsCredentials::resolve_with_store(None, &store, &[toml_path]);
         assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
     }
+
+    /// Fake store whose `get` always returns `StoreError::Backend`. Used to
+    /// prove that the resolver refuses the toml fallback in that case — the
+    /// central security invariant of this PR.
+    struct FailingBackendStore;
+
+    impl CredentialStore for FailingBackendStore {
+        fn get(&self, _key: &str) -> Result<Option<String>, StoreError> {
+            Err(StoreError::Backend("access denied".to_string()))
+        }
+        fn set(&self, _key: &str, _value: &str) -> Result<(), StoreError> {
+            Err(StoreError::Backend("access denied".to_string()))
+        }
+        fn delete(&self, _key: &str) -> Result<(), StoreError> {
+            Err(StoreError::Backend("access denied".to_string()))
+        }
+    }
+
+    /// Fake store whose `get` always returns `StoreError::Unavailable`.
+    /// Unlike `Backend`, the resolver is allowed to fall through to the
+    /// toml for `Unavailable`.
+    struct UnavailableStore;
+
+    impl CredentialStore for UnavailableStore {
+        fn get(&self, _key: &str) -> Result<Option<String>, StoreError> {
+            Err(StoreError::Unavailable("no default keychain".to_string()))
+        }
+        fn set(&self, _key: &str, _value: &str) -> Result<(), StoreError> {
+            Err(StoreError::Unavailable("no default keychain".to_string()))
+        }
+        fn delete(&self, _key: &str) -> Result<(), StoreError> {
+            Err(StoreError::Unavailable("no default keychain".to_string()))
+        }
+    }
+
+    #[test]
+    fn test_resolve_backend_error_refuses_toml_fallback() {
+        // Central invariant: if the Keychain reports a real access failure
+        // (Backend), the resolver must NOT silently pick up the plaintext
+        // toml value. That would defeat the whole point of migrating the
+        // secret out of the file.
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let creds =
+            CloudAppsCredentials::resolve_with_store(None, &FailingBackendStore, &[toml_path]);
+        assert!(
+            creds.api_token.is_none(),
+            "Backend error must refuse toml fallback; got {:?}",
+            creds
+        );
+    }
+
+    #[test]
+    fn test_resolve_store_unavailable_falls_through_to_toml() {
+        // Counterpart to the Backend test: `Unavailable` means the backend
+        // is absent (non-macOS, CI sandbox), so the resolver should fall
+        // through to the toml quietly.
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let creds = CloudAppsCredentials::resolve_with_store(None, &UnavailableStore, &[toml_path]);
+        assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
+    }
 }
