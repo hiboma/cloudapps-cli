@@ -1,0 +1,54 @@
+name: Pinact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+      - '.pinact.yaml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+      - '.pinact.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      PINACT_VERSION: 3.9.0
+      PINACT_SHA256: 3829da718de38b1e914b974c3e77045a256999af84789437a7305b09130d8a6a
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download pinact
+        run: |
+          set -euo pipefail
+          curl -fsSL -o pinact.tar.gz \
+            "https://github.com/suzuki-shunsuke/pinact/releases/download/v${PINACT_VERSION}/pinact_linux_amd64.tar.gz"
+
+      - name: Verify SHA256
+        run: |
+          set -euo pipefail
+          echo "${PINACT_SHA256}  pinact.tar.gz" | sha256sum -c -
+
+      - name: Extract
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/pinact"
+          tar -xzf pinact.tar.gz -C "${RUNNER_TEMP}/pinact" pinact
+          echo "${RUNNER_TEMP}/pinact" >> "${GITHUB_PATH}"
+
+      - name: pinact run --verify --check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pinact --version
+          pinact run --verify --check
