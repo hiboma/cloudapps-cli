@@ -48,7 +48,7 @@ You can configure credentials using a `credentials.toml` file. The first file fo
 1. `./.cloudapps-credentials.toml` (project-local)
 2. `$XDG_CONFIG_HOME/cloudapps-cli/credentials.toml` (default: `~/.config/cloudapps-cli/credentials.toml`)
 
-Priority: CLI arguments > environment variables > credentials.toml
+Priority: CLI arguments > environment variables > credential store (macOS Keychain) > credentials.toml
 
 Template:
 
@@ -81,6 +81,110 @@ chmod 600 "${XDG_CONFIG_HOME:-$HOME/.config}/cloudapps-cli/credentials.toml"
 # Edit and save .cloudapps-credentials.toml, then:
 chmod 600 .cloudapps-credentials.toml
 ```
+
+### Credential storage (macOS Keychain)
+
+On macOS, `cloudapps-cli` can back `CLOUDAPPS_API_TOKEN` with the login
+Keychain so it does not have to live in plaintext `credentials.toml`.
+
+Resolution order (highest priority first):
+
+1. `CLOUDAPPS_API_TOKEN` environment variable
+2. **macOS Keychain** (login keychain, `service=dev.cloudapps-cli`,
+   `account=api_token`)
+3. `credentials.toml`, searched in this order:
+   1. `./.cloudapps-credentials.toml` (current working directory)
+   2. `$XDG_CONFIG_HOME/cloudapps-cli/credentials.toml` (falls back to
+      `~/.config/cloudapps-cli/credentials.toml`)
+
+Storing the token in the Keychain keeps it out of plaintext config
+files (and out of dotfile backups, Time Machine snapshots, accidental
+`git add` of the home directory, malware reading the home directory
+under the same uid).
+
+#### Storing a token
+
+```bash
+cloudapps-cli credentials set api-token
+# Enter api_token (input hidden):
+
+# or, from a password manager:
+pbpaste | cloudapps-cli credentials set api-token --stdin
+```
+
+#### Migrating from credentials.toml
+
+If you already have a token in `credentials.toml`, move it directly
+into the Keychain in one step:
+
+```bash
+cloudapps-cli credentials migrate
+```
+
+`migrate` writes the token to the Keychain and then offers to dispose
+of the plaintext copy:
+
+- **Recommended (default)**: the `api_token` line is removed from the
+  toml via an atomic temp-file rename. No plaintext copy remains on
+  disk.
+- **Opt-in**: a 0o600 backup of the original toml is kept alongside
+  the rewritten file. Choose this only if you need to roll back to the
+  old setup.
+
+> ⚠️ **The opt-in backup still contains the plaintext token.** A backup
+> under `$HOME` is typically included in Time Machine / iCloud / rsync
+> snapshots and defeats the point of moving the token into the
+> Keychain. Delete it as soon as you have confirmed the new setup works
+> with `cloudapps-cli credentials status`.
+
+If the rewrite fails partway through, migrate rolls back the Keychain
+entry it just wrote so you are not left in a half-migrated state.
+
+##### Recovering from an interrupted migrate
+
+If you hit Ctrl-C (or your machine loses power) **between** the
+Keychain write and the toml rewrite, both copies of the token exist:
+the new Keychain entry *and* the untouched `credentials.toml`. The
+process is idempotent — re-running `cloudapps-cli credentials migrate`
+on the same file will detect that the token is still present in the
+toml and re-run the disposal step. Alternatively, if you want to bail
+out entirely, `cloudapps-cli credentials delete api-token` removes the
+Keychain entry and the toml stays as it was.
+
+#### Inspecting the entry
+
+```bash
+cloudapps-cli credentials status
+# Credential store: macOS Keychain (service=dev.cloudapps-cli)
+#   api_token : stored
+```
+
+`status` only reports presence — it never prints the stored value. The
+`get` subcommand is intentionally absent: there is no legitimate
+workflow that requires reading the plaintext token back out, and
+exposing one would invite accidental leakage into shell history,
+terminal scrollback, AI-agent transcripts, and PR descriptions. If you
+need to confirm a token, re-issue it from the Microsoft Defender for
+Cloud Apps portal.
+
+#### Deleting the entry
+
+```bash
+cloudapps-cli credentials delete api-token
+```
+
+#### Notes on Keychain prompts
+
+macOS Keychain prompts the user on first access. Users who pin the
+entry with "Always Allow" see no further prompts unless the binary's
+signature changes (for example, after a `cargo install` rebuild).
+
+If `credentials status` shows `error (UNIX[Operation not permitted])`
+or similar, the stored ACL entry is stale. Recover by opening
+**Keychain Access.app**, finding
+`dev.cloudapps-cli` / `api_token`, deleting the Access Control entry
+for `cloudapps-cli`, and re-running `status` so macOS re-creates the
+ACL entry against the new binary signature.
 
 ## Usage
 
