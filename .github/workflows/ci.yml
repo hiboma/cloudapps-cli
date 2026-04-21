@@ -35,10 +35,10 @@ jobs:
       - if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --check
       - if: matrix.os == 'ubuntu-latest'
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked -- -D warnings
       # Release build must run on every OS the release workflow targets,
       # so compile- and link-level regressions are caught here.
-      - run: cargo build --release
+      - run: cargo build --release --locked
 
   test:
     runs-on: ubuntu-latest
@@ -49,9 +49,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           toolchain: stable
-      - run: cargo install cargo-llvm-cov
-      - run: cargo llvm-cov --summary-only
-      - run: cargo test
+      - run: cargo install cargo-llvm-cov --locked
+      - run: cargo llvm-cov --summary-only --locked
+      - run: cargo test --locked
 
   audit:
     runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - run: cargo install cargo-audit
+      - run: cargo install cargo-audit --locked
       - run: cargo audit
 
   race-check:
@@ -74,6 +74,6 @@ jobs:
           components: rust-src
       - run: |
           RUSTFLAGS="-Z sanitizer=thread" \
-          cargo +nightly test --lib \
+          cargo +nightly test --lib --locked \
           -Z build-std \
           --target x86_64-unknown-linux-gnu
