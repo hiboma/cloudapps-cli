@@ -12,6 +12,7 @@ pub const COMPLETION_HELP: &str = "# completion\n\nGenerate shell completion scr
 
 pub const POLICIES_HELP: &str = include_str!("../docs/specifications/17-resources-policies.md");
 
+#[cfg(unix)]
 pub const CREDENTIALS_HELP: &str = include_str!("../docs/specifications/19-credentials-storage.md");
 
 pub fn get_help(command: &Commands) -> &'static str {
@@ -22,6 +23,7 @@ pub fn get_help(command: &Commands) -> &'static str {
         Commands::Files { .. } => FILES_HELP,
         Commands::DataEnrichment { .. } => DATA_ENRICHMENT_HELP,
         Commands::Policies { .. } => POLICIES_HELP,
+        #[cfg(unix)]
         Commands::Credentials { .. } => CREDENTIALS_HELP,
         #[cfg(unix)]
         Commands::Agent { .. } => AGENT_HELP,

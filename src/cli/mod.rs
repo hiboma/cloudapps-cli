@@ -2,6 +2,7 @@ pub mod activities;
 #[cfg(unix)]
 pub mod agent;
 pub mod alerts;
+#[cfg(unix)]
 pub mod credentials;
 pub mod data_enrichment;
 pub mod entities;
@@ -142,6 +143,7 @@ pub enum Commands {
 
     // -- System --
     /// Manage API token stored in the OS credential store (macOS Keychain)
+    #[cfg(unix)]
     #[command(
         subcommand_required = true,
         arg_required_else_help = true,
@@ -183,6 +185,7 @@ impl Commands {
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
             Commands::Policies { .. } => "policies",
+            #[cfg(unix)]
             Commands::Credentials { .. } => "credentials",
             #[cfg(unix)]
             Commands::Agent { .. } => "agent",
