@@ -2,6 +2,7 @@ pub mod activities;
 #[cfg(unix)]
 pub mod agent;
 pub mod alerts;
+pub mod credentials;
 pub mod data_enrichment;
 pub mod entities;
 pub mod files;
@@ -140,6 +141,22 @@ pub enum Commands {
     },
 
     // -- System --
+    /// Manage API token stored in the OS credential store (macOS Keychain)
+    #[command(
+        subcommand_required = true,
+        arg_required_else_help = true,
+        long_about = "Manage the Microsoft Defender for Cloud Apps API token stored in the OS credential store.\n\
+                      \n\
+                      On macOS this is the login Keychain, service `dev.cloudapps-cli`, account `api_token`.\n\
+                      \n\
+                      `get` is intentionally absent — there is no legitimate workflow that requires \n\
+                      reading the plaintext token back out."
+    )]
+    Credentials {
+        #[command(subcommand)]
+        command: credentials::CredentialsCommand,
+    },
+
     /// Manage the credential isolation agent (Unix only)
     #[cfg(unix)]
     #[command(subcommand_required = true, arg_required_else_help = true, hide = true)]
@@ -166,6 +183,7 @@ impl Commands {
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
             Commands::Policies { .. } => "policies",
+            Commands::Credentials { .. } => "credentials",
             #[cfg(unix)]
             Commands::Agent { .. } => "agent",
             Commands::Completion { .. } => "completion",

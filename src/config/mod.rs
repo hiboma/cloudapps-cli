@@ -1,5 +1,9 @@
+pub mod credential_store;
+
 use serde::Deserialize;
 use std::path::PathBuf;
+
+use credential_store::{CredentialStore, KEY_API_TOKEN, StoreError, default_store};
 
 /// Resolve a value from CLI option or environment variable (in priority order).
 pub fn resolve_value(cli_value: Option<&str>, env_var: &str) -> Option<String> {
@@ -22,13 +26,26 @@ struct CredentialsFile {
 }
 
 /// Resolved CloudApps credentials collected from CLI args, environment variables,
-/// and credentials.toml.
-/// Once constructed, the process should unset the CLOUDAPPS_* environment variables so that
-/// forked child processes (agent) do not inherit credentials via the environment.
-#[derive(Debug, Clone, Default)]
+/// the OS credential store (macOS Keychain), and credentials.toml.
+///
+/// Once constructed, the process should unset the CLOUDAPPS_* environment
+/// variables so that forked child processes (agent) do not inherit credentials
+/// via the environment.
+#[derive(Clone, Default)]
 pub struct CloudAppsCredentials {
     pub api_url: Option<String>,
     pub api_token: Option<String>,
+}
+
+/// Hand-written `Debug` so an accidental `dbg!()` / `{:?}` on this struct
+/// does not end up printing the API token into a log or an error message.
+impl std::fmt::Debug for CloudAppsCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudAppsCredentials")
+            .field("api_url", &self.api_url)
+            .field("api_token", &self.api_token.as_ref().map(|_| "***"))
+            .finish()
+    }
 }
 
 /// Search paths for credentials.toml (highest priority first).
@@ -80,15 +97,49 @@ fn load_credentials_from_paths(paths: &[PathBuf]) -> CredentialsFile {
     CredentialsFile::default()
 }
 
+/// Look up `api_token` in the credential store.
+///
+/// Returns:
+/// - `Ok(Some(value))`: Keychain has an entry, use it.
+/// - `Ok(None)`: No entry (or backend unavailable). The resolver may fall
+///   through to `credentials.toml`.
+/// - `Err(())`: Backend error (e.g. access denied). The resolver must NOT
+///   fall through to plaintext; we've already emitted a warning to stderr.
+fn lookup_store_token(store: &dyn CredentialStore) -> Result<Option<String>, ()> {
+    match store.get(KEY_API_TOKEN) {
+        Ok(v) => Ok(v),
+        Err(StoreError::Unavailable(_)) => Ok(None),
+        Err(StoreError::Backend(msg)) => {
+            eprintln!(
+                "warning: failed to read api_token from credential store: {}. \
+                 Refusing to fall back to credentials.toml so a stale plaintext \
+                 value cannot silently mask the intended Keychain secret.",
+                msg
+            );
+            Err(())
+        }
+    }
+}
+
 impl CloudAppsCredentials {
-    /// Resolve credentials from CLI args, environment variables, and credentials.toml.
-    /// Priority: CLI args > environment variables > credentials.toml > defaults.
+    /// Resolve credentials from CLI args, environment variables, the OS
+    /// credential store, and credentials.toml.
+    ///
+    /// Priority: CLI args > environment variables > OS credential store >
+    /// credentials.toml > defaults.
     pub fn resolve(cli_api_url: Option<&str>) -> Self {
-        Self::resolve_with_paths(cli_api_url, &credentials_search_paths())
+        let store = default_store();
+        Self::resolve_with_store(cli_api_url, &*store, &credentials_search_paths())
     }
 
-    /// Resolve credentials with explicit search paths for credentials.toml.
-    fn resolve_with_paths(cli_api_url: Option<&str>, search_paths: &[PathBuf]) -> Self {
+    /// Resolve credentials with an explicit credential store and explicit
+    /// search paths for credentials.toml. Exposed so tests can substitute
+    /// `MemoryStore`.
+    pub fn resolve_with_store(
+        cli_api_url: Option<&str>,
+        store: &dyn CredentialStore,
+        search_paths: &[PathBuf],
+    ) -> Self {
         let file = load_credentials_from_paths(search_paths);
 
         let api_url = cli_api_url
@@ -96,9 +147,36 @@ impl CloudAppsCredentials {
             .or_else(|| non_empty(std::env::var("CLOUDAPPS_API_URL").ok()))
             .or(file.api_url);
 
-        let api_token = non_empty(std::env::var("CLOUDAPPS_API_TOKEN").ok()).or(file.api_token);
+        // env > store > toml. A Backend error from the store refuses
+        // the toml fallback so a stale plaintext value cannot silently
+        // mask the intended Keychain secret.
+        let env_token = non_empty(std::env::var("CLOUDAPPS_API_TOKEN").ok());
+        let api_token = if let Some(t) = env_token {
+            Some(t)
+        } else {
+            match lookup_store_token(store) {
+                Ok(Some(t)) => Some(t),
+                Ok(None) => file.api_token,
+                Err(()) => None,
+            }
+        };
 
         Self { api_url, api_token }
+    }
+
+    /// Resolve credentials with explicit search paths for credentials.toml.
+    ///
+    /// Test-only. Uses an **empty** `MemoryStore` instead of the platform
+    /// default so that tests never consult (and therefore never race
+    /// against) a real OS Keychain entry the developer might have set with
+    /// `cloudapps-cli credentials set api-token`. Tests that need to
+    /// exercise the store path explicitly construct their own
+    /// `MemoryStore` / `FailingBackendStore` / `UnavailableStore` and call
+    /// `resolve_with_store` directly.
+    #[cfg(test)]
+    fn resolve_with_paths(cli_api_url: Option<&str>, search_paths: &[PathBuf]) -> Self {
+        let store = credential_store::MemoryStore::new();
+        Self::resolve_with_store(cli_api_url, &store, search_paths)
     }
 
     /// Validate that required credentials are present for API access.
@@ -115,7 +193,7 @@ impl CloudAppsCredentials {
             Ok(())
         } else {
             Err(format!(
-                "missing required credentials: {}. Set via environment variables, CLI options, or credentials.toml.",
+                "missing required credentials: {}. Set via environment variables, CLI options, credentials.toml, or `cloudapps-cli credentials set api-token`.",
                 missing.join(", ")
             ))
         }
@@ -189,6 +267,7 @@ unsafe fn overwrite_environ_value(name: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use credential_store::MemoryStore;
     use std::sync::Mutex;
 
     /// Mutex to serialize tests that manipulate CLOUDAPPS_* environment variables.
@@ -235,6 +314,17 @@ mod tests {
         assert!(err.contains("CLOUDAPPS_API_TOKEN"));
     }
 
+    #[test]
+    fn test_debug_masks_api_token() {
+        let creds = CloudAppsCredentials {
+            api_url: Some("https://example.com".to_string()),
+            api_token: Some("super-secret-token".to_string()),
+        };
+        let rendered = format!("{:?}", creds);
+        assert!(!rendered.contains("super-secret-token"));
+        assert!(rendered.contains("***"));
+    }
+
     /// Helper to ensure CLOUDAPPS_* env vars are cleared before tests that call resolve().
     unsafe fn clear_cloudapps_env() {
         unsafe {
@@ -243,9 +333,11 @@ mod tests {
         }
     }
 
-    /// Use resolve_with_paths with empty paths to isolate tests from real credentials.toml.
-    fn resolve_without_file(cli_api_url: Option<&str>) -> CloudAppsCredentials {
-        CloudAppsCredentials::resolve_with_paths(cli_api_url, &[])
+    /// Use resolve_with_store with an empty MemoryStore and empty paths to
+    /// isolate tests from real credentials.toml and the real Keychain.
+    fn resolve_without_store_or_file(cli_api_url: Option<&str>) -> CloudAppsCredentials {
+        let store = MemoryStore::new();
+        CloudAppsCredentials::resolve_with_store(cli_api_url, &store, &[])
     }
 
     #[test]
@@ -255,7 +347,7 @@ mod tests {
         unsafe {
             std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
         }
-        let creds = resolve_without_file(Some("https://cli.example.com"));
+        let creds = resolve_without_store_or_file(Some("https://cli.example.com"));
         assert_eq!(creds.api_url.as_deref(), Some("https://cli.example.com"));
         unsafe { clear_cloudapps_env() };
     }
@@ -268,7 +360,7 @@ mod tests {
             std::env::set_var("CLOUDAPPS_API_URL", "https://env.example.com");
             std::env::set_var("CLOUDAPPS_API_TOKEN", "env-token");
         }
-        let creds = resolve_without_file(None);
+        let creds = resolve_without_store_or_file(None);
         assert_eq!(creds.api_url.as_deref(), Some("https://env.example.com"));
         assert_eq!(creds.api_token.as_deref(), Some("env-token"));
         unsafe { clear_cloudapps_env() };
@@ -278,7 +370,7 @@ mod tests {
     fn test_credentials_resolve_empty() {
         let _lock = ENV_MUTEX.lock().unwrap();
         unsafe { clear_cloudapps_env() };
-        let creds = resolve_without_file(None);
+        let creds = resolve_without_store_or_file(None);
         assert!(creds.api_url.is_none());
         assert!(creds.api_token.is_none());
     }
@@ -465,7 +557,7 @@ api_token = "second-token"
             std::env::set_var("CLOUDAPPS_API_TOKEN", "test-token");
         }
 
-        let creds = resolve_without_file(None);
+        let creds = resolve_without_store_or_file(None);
         assert_eq!(creds.api_url.as_deref(), Some("https://test.example.com"));
         assert_eq!(creds.api_token.as_deref(), Some("test-token"));
 
@@ -480,5 +572,144 @@ api_token = "second-token"
         // But env vars are gone
         assert!(std::env::var("CLOUDAPPS_API_URL").is_err());
         assert!(std::env::var("CLOUDAPPS_API_TOKEN").is_err());
+    }
+
+    #[test]
+    fn test_store_token_preferred_over_toml() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_url = "https://toml.example.com"
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let store = MemoryStore::new();
+        store.set(KEY_API_TOKEN, "store-token").unwrap();
+        let creds = CloudAppsCredentials::resolve_with_store(None, &store, &[toml_path]);
+        // Store beats toml when env is unset.
+        assert_eq!(creds.api_token.as_deref(), Some("store-token"));
+        // api_url still resolves from toml (stored credentials only cover api_token).
+        assert_eq!(creds.api_url.as_deref(), Some("https://toml.example.com"));
+    }
+
+    #[test]
+    fn test_env_token_beats_store_token() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        unsafe {
+            std::env::set_var("CLOUDAPPS_API_TOKEN", "env-token");
+        }
+        let store = MemoryStore::new();
+        store.set(KEY_API_TOKEN, "store-token").unwrap();
+        let creds = CloudAppsCredentials::resolve_with_store(None, &store, &[]);
+        assert_eq!(creds.api_token.as_deref(), Some("env-token"));
+        unsafe { clear_cloudapps_env() };
+    }
+
+    #[test]
+    fn test_store_falls_through_to_toml_when_empty() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let store = MemoryStore::new();
+        let creds = CloudAppsCredentials::resolve_with_store(None, &store, &[toml_path]);
+        assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
+    }
+
+    /// Fake store whose `get` always returns `StoreError::Backend`. Used to
+    /// prove that the resolver refuses the toml fallback in that case — the
+    /// central security invariant of this PR.
+    struct FailingBackendStore;
+
+    impl CredentialStore for FailingBackendStore {
+        fn get(&self, _key: &str) -> Result<Option<String>, StoreError> {
+            Err(StoreError::Backend("access denied".to_string()))
+        }
+        fn set(&self, _key: &str, _value: &str) -> Result<(), StoreError> {
+            Err(StoreError::Backend("access denied".to_string()))
+        }
+        fn delete(&self, _key: &str) -> Result<(), StoreError> {
+            Err(StoreError::Backend("access denied".to_string()))
+        }
+    }
+
+    /// Fake store whose `get` always returns `StoreError::Unavailable`.
+    /// Unlike `Backend`, the resolver is allowed to fall through to the
+    /// toml for `Unavailable`.
+    struct UnavailableStore;
+
+    impl CredentialStore for UnavailableStore {
+        fn get(&self, _key: &str) -> Result<Option<String>, StoreError> {
+            Err(StoreError::Unavailable("no default keychain".to_string()))
+        }
+        fn set(&self, _key: &str, _value: &str) -> Result<(), StoreError> {
+            Err(StoreError::Unavailable("no default keychain".to_string()))
+        }
+        fn delete(&self, _key: &str) -> Result<(), StoreError> {
+            Err(StoreError::Unavailable("no default keychain".to_string()))
+        }
+    }
+
+    #[test]
+    fn test_resolve_backend_error_refuses_toml_fallback() {
+        // Central invariant: if the Keychain reports a real access failure
+        // (Backend), the resolver must NOT silently pick up the plaintext
+        // toml value. That would defeat the whole point of migrating the
+        // secret out of the file.
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let creds =
+            CloudAppsCredentials::resolve_with_store(None, &FailingBackendStore, &[toml_path]);
+        assert!(
+            creds.api_token.is_none(),
+            "Backend error must refuse toml fallback; got {:?}",
+            creds
+        );
+    }
+
+    #[test]
+    fn test_resolve_store_unavailable_falls_through_to_toml() {
+        // Counterpart to the Backend test: `Unavailable` means the backend
+        // is absent (non-macOS, CI sandbox), so the resolver should fall
+        // through to the toml quietly.
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let dir = tempfile::tempdir().unwrap();
+        let toml_path = dir.path().join("credentials.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[credentials]
+api_token = "toml-token"
+"#,
+        )
+        .unwrap();
+        let creds = CloudAppsCredentials::resolve_with_store(None, &UnavailableStore, &[toml_path]);
+        assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
     }
 }
