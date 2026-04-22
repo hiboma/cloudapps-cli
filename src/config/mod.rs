@@ -200,19 +200,30 @@ impl CloudAppsCredentials {
     }
 
     /// Remove CloudApps credential environment variables from the current process.
-    /// First overwrites the values in-place (via the C `environ` pointer) so that
-    /// the kernel's process environment snapshot — visible through `ps -E` or
-    /// `/proc/<pid>/environ` — no longer contains the real secrets.
-    /// Then calls `remove_var` to fully unset each variable.
+    ///
+    /// On Unix, first overwrites the values in-place (via the C `environ`
+    /// pointer) so that the kernel's process environment snapshot —
+    /// visible through `ps -E` or `/proc/<pid>/environ` — no longer
+    /// contains the real secrets. Then calls `remove_var` to fully unset
+    /// each variable.
+    ///
+    /// On Windows, `environ` is not a linkable external symbol and the
+    /// equivalent `ps -E` exposure model differs; we simply call
+    /// `remove_var`. The in-place scrub optimization is a Unix-only
+    /// hardening.
     ///
     /// # Safety
-    /// Must be called in a single-threaded context (before tokio runtime creation).
+    /// Must be called in a single-threaded context (before tokio runtime
+    /// creation). On Unix, the Rust stdlib's env mutation APIs are
+    /// documented as thread-unsafe because they share the C `environ`
+    /// pointer with getenv/setenv; this function adds an in-place
+    /// overwrite on top of that, so the single-threaded requirement is
+    /// stricter than `std::env::remove_var` alone implies.
     pub unsafe fn clear_env() {
         for key in &["CLOUDAPPS_API_URL", "CLOUDAPPS_API_TOKEN"] {
             // SAFETY: Caller guarantees single-threaded context.
-            // Overwrite the value in the C environ array before removing,
-            // so the kernel snapshot no longer contains the real value.
             unsafe {
+                #[cfg(unix)]
                 overwrite_environ_value(key);
                 std::env::remove_var(key);
             }
@@ -224,9 +235,16 @@ impl CloudAppsCredentials {
 /// This mutates the C `environ` array directly so that the kernel's snapshot
 /// (read by `ps -E` / `/proc/<pid>/environ`) is scrubbed.
 ///
+/// Unix-only. The MSVC Windows CRT exposes `_environ` / `_wenviron` instead
+/// of a POSIX `environ` linkable symbol, and the attacker model addressed
+/// here (`ps -E`) does not transfer to Windows. Gating on `cfg(unix)` also
+/// prevents the linker error (LNK2019 unresolved external `environ`) that
+/// v0.9.1 release hit on `x86_64-pc-windows-msvc`.
+///
 /// # Safety
 /// Must be called in a single-threaded context. The `environ` pointer and its
 /// strings must not be concurrently accessed.
+#[cfg(unix)]
 unsafe fn overwrite_environ_value(name: &str) {
     unsafe extern "C" {
         static mut environ: *mut *mut libc::c_char;
