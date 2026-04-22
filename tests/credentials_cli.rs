@@ -1,4 +1,5 @@
 #![allow(deprecated)] // Command::cargo_bin is deprecated but cargo_bin_cmd! has different ergonomics
+#![cfg(unix)] // `credentials` subcommand is Unix-only (Keychain + Unix file perms)
 
 //! End-to-end integration tests for `cloudapps-cli credentials` that do
 //! not touch the real Keychain.

@@ -21,10 +21,17 @@ fn main() {
     // fail with an ACL error; letting that output leak above
     // `credentials status` would be confusing since `status` is
     // precisely how the user inspects the store.
-    let skips_resolve = matches!(
-        cli.command,
-        Some(Commands::Credentials { .. }) | Some(Commands::Completion { .. })
-    );
+    //
+    // `credentials` itself is Unix-only (the Keychain backend only
+    // compiles on macOS; the rest of Unix gets an `UnsupportedStore`
+    // that always reports Unavailable, which is still useful for
+    // smoke-testing the subcommand surface).
+    let skips_resolve = match &cli.command {
+        Some(Commands::Completion { .. }) => true,
+        #[cfg(unix)]
+        Some(Commands::Credentials { .. }) => true,
+        _ => false,
+    };
 
     // Resolve credentials early (before fork).
     let credentials = if skips_resolve {
@@ -133,6 +140,10 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
     }
 
     // Handle credentials subcommand (does not talk to the API).
+    // Unix-only: the Keychain backend is only compiled on macOS and the
+    // Unix file-permission APIs (chmod 0600 for backups / tempfiles) do
+    // not compile on Windows.
+    #[cfg(unix)]
     if let Commands::Credentials { command: creds_cmd } = &command {
         return cloudapps::commands::credentials::handle(creds_cmd);
     }
