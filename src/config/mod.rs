@@ -165,11 +165,18 @@ impl CloudAppsCredentials {
     }
 
     /// Resolve credentials with explicit search paths for credentials.toml.
-    /// Uses the platform-default credential store.
+    ///
+    /// Test-only. Uses an **empty** `MemoryStore` instead of the platform
+    /// default so that tests never consult (and therefore never race
+    /// against) a real OS Keychain entry the developer might have set with
+    /// `cloudapps-cli credentials set api-token`. Tests that need to
+    /// exercise the store path explicitly construct their own
+    /// `MemoryStore` / `FailingBackendStore` / `UnavailableStore` and call
+    /// `resolve_with_store` directly.
     #[cfg(test)]
     fn resolve_with_paths(cli_api_url: Option<&str>, search_paths: &[PathBuf]) -> Self {
-        let store = default_store();
-        Self::resolve_with_store(cli_api_url, &*store, search_paths)
+        let store = credential_store::MemoryStore::new();
+        Self::resolve_with_store(cli_api_url, &store, search_paths)
     }
 
     /// Validate that required credentials are present for API access.
