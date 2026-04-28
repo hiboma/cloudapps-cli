@@ -1,0 +1,56 @@
+name: zizmor
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      ZIZMOR_VERSION: 1.24.1
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: stable
+
+      - name: Install zizmor
+        run: cargo install zizmor --locked --version "${ZIZMOR_VERSION}"
+
+      - name: Run zizmor (SARIF for code scanning)
+        run: zizmor --format sarif --no-exit-codes .github/workflows > zizmor.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
+
+      - name: Fail on medium or higher severity findings
+        run: |
+          set -euo pipefail
+          zizmor --format json --no-exit-codes .github/workflows > zizmor.json
+          count=$(jq '[.[] | select(.determinations.severity == "Medium" or .determinations.severity == "High")] | length' zizmor.json)
+          if [ "${count}" -gt 0 ]; then
+            echo "::error::zizmor found ${count} finding(s) with medium or higher severity"
+            zizmor --min-severity medium --no-exit-codes .github/workflows
+            exit 1
+          fi
+          echo "No medium or higher severity findings."
