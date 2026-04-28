@@ -11,7 +11,18 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # fmt and clippy only need to run once; the OS matrix exists because
+    # target-conditional code (e.g. `#[cfg(unix)]` guards around the
+    # environ scrub in src/config/mod.rs) was silently regressing on
+    # Windows. The Windows matrix leg in particular catches the LNK2019
+    # `unresolved external symbol environ` class of failure at PR time
+    # rather than during the tag-triggered release workflow (see the
+    # v0.9.0 / v0.9.1 release failures for the motivation).
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -20,8 +31,13 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-      - run: cargo fmt --check
-      - run: cargo clippy -- -D warnings
+      # Lint checks only need to run on one OS.
+      - if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --check
+      - if: matrix.os == 'ubuntu-latest'
+        run: cargo clippy -- -D warnings
+      # Release build must run on every OS the release workflow targets,
+      # so compile- and link-level regressions are caught here.
       - run: cargo build --release
 
   test:

@@ -22,6 +22,7 @@
 | 16  | [Agent Mode](16-agent-mode.md)                       | Credential isolation via ssh-agent model                |
 | 17  | [Policies](17-resources-policies.md)                 | Policies resource API and CLI commands (undocumented API)|
 | 18  | [Shell Completion](18-shell-completion.md)           | Shell completion generation (bash, zsh, fish, etc.)     |
+| 19  | [Credentials Storage](19-credentials-storage.md)     | OS credential store (macOS Keychain) for `api_token`    |
 
 ## API Reference
 
