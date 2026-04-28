@@ -108,7 +108,7 @@ jobs:
         run: |
           cd artifacts
           find . -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec mv {} . \;
-          sha256sum *.tar.gz *.zip > sha256sums.txt
+          sha256sum -- *.tar.gz *.zip > sha256sums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
