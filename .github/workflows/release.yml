@@ -30,6 +30,12 @@ jobs:
             os: windows-latest
             cross: false
     runs-on: ${{ matrix.os }}
+    outputs:
+      hash-x86_64-unknown-linux-gnu: ${{ steps.hash.outputs.hash-x86_64-unknown-linux-gnu }}
+      hash-aarch64-unknown-linux-gnu: ${{ steps.hash.outputs.hash-aarch64-unknown-linux-gnu }}
+      hash-x86_64-apple-darwin: ${{ steps.hash.outputs.hash-x86_64-apple-darwin }}
+      hash-aarch64-apple-darwin: ${{ steps.hash.outputs.hash-aarch64-apple-darwin }}
+      hash-x86_64-pc-windows-msvc: ${{ steps.hash.outputs.hash-x86_64-pc-windows-msvc }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -80,6 +86,32 @@ jobs:
           Copy-Item LICENSE, README.md $archiveName
           Compress-Archive -Path $archiveName -DestinationPath "${archiveName}.zip"
 
+      - name: Generate subject hash for SLSA provenance
+        id: hash
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            ARTIFACT="cloudapps-cli-${TARGET}.zip"
+          else
+            ARTIFACT="cloudapps-cli-${TARGET}.tar.gz"
+          fi
+          # macOS lacks sha256sum; fall back to shasum -a 256.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${ARTIFACT}" > checksum.txt
+          else
+            shasum -a 256 "${ARTIFACT}" > checksum.txt
+          fi
+          # macOS base64 has no -w0; use tr to strip newlines.
+          if base64 --help 2>&1 | grep -q -- '-w'; then
+            ENCODED=$(base64 -w0 checksum.txt)
+          else
+            ENCODED=$(base64 -i checksum.txt | tr -d '\n')
+          fi
+          echo "hash-${TARGET}=${ENCODED}" >> "${GITHUB_OUTPUT}"
+
       - name: Upload artifact (unix)
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -94,8 +126,39 @@ jobs:
           name: cloudapps-cli-${{ matrix.target }}
           path: cloudapps-cli-${{ matrix.target }}.zip
 
+  combine_hashes:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    env:
+      HASHES: ${{ toJSON(needs.build.outputs) }}
+    steps:
+      - id: hashes
+        run: |
+          set -euo pipefail
+          printf '%s' "$HASHES" | jq -r '.[] | @base64d' | sed '/^$/d' > hashes.txt
+          echo "hashes=$(base64 -w0 hashes.txt)" >> "${GITHUB_OUTPUT}"
+
+  # SLSA Level 3 provenance generation. The reusable workflow must be
+  # referenced by tag (not commit SHA) so slsa-verifier can validate the
+  # OIDC job_workflow_ref claim against the published tag.
+  provenance:
+    needs: [combine_hashes]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0  # zizmor: ignore[unpinned-uses]
+    with:
+      base64-subjects: ${{ needs.combine_hashes.outputs.hashes }}
+      provenance-name: cloudapps-cli.intoto.jsonl
+      upload-assets: true
+
   release:
-    needs: build
+    needs: [build, provenance]
     permissions:
       contents: write
     runs-on: ubuntu-latest
