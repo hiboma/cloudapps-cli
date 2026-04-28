@@ -27,6 +27,14 @@ Detailed specifications are in `docs/specifications/`. See `docs/specifications/
 | 13  | Homebrew distribution |
 | 14  | Pre-release checklist |
 | 15  | CLI UX improvements (named enums, shorthand filters, unified close) |
+| 19  | Credentials storage (macOS Keychain for `api_token`) |
+
+## Credentials
+
+- `cloudapps-cli credentials {set|delete|status|migrate}` manages the API token in the macOS Keychain (`service=dev.cloudapps-cli`, `account=api_token`)
+- Resolution order: env var > Keychain > credentials.toml
+- `credentials get` は意図的に非実装 (shell history 漏洩防止)
+- ADR: `docs/adr/0005-keychain-backed-api-token.md`
 
 ## Agent Mode
 
