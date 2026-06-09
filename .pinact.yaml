@@ -1,0 +1,8 @@
+version: 3
+
+# SLSA reusable workflows must be referenced by tag (not commit SHA) so that
+# slsa-verifier can validate the OIDC job_workflow_ref claim against the
+# published tag. SHA-pinning these would break Level 3 verification.
+ignore_actions:
+  - name: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml
+    ref: v2.1.0
