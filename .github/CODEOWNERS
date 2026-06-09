@@ -1,0 +1,12 @@
+# Supply-chain-sensitive files require maintainer review.
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-configuration/customizing-your-repository/about-code-owners
+
+.github/workflows/      @hiboma
+.github/actions/        @hiboma
+.github/dependabot.yml  @hiboma
+.github/CODEOWNERS      @hiboma
+.pinact.yaml            @hiboma
+Cargo.toml              @hiboma
+Cargo.lock              @hiboma
+deny.toml               @hiboma
+SECURITY.md             @hiboma
