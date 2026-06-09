@@ -6,6 +6,12 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 3
+    ignore:
+      # rpassword 7.5.0 fails to compile on macOS: unix.rs calls the
+      # Linux-only libc::__errno_location() unconditionally (upstream
+      # regression). Skip 7.5.0; allow the fix in a later release.
+      - dependency-name: "rpassword"
+        versions: ["7.5.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
