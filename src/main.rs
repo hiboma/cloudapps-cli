@@ -28,6 +28,11 @@ fn main() {
     // smoke-testing the subcommand surface).
     let skips_resolve = match &cli.command {
         Some(Commands::Completion { .. }) => true,
+        // `doctor` must NOT scrub CLOUDAPPS_* before running, or its
+        // ENVIRONMENT section would always report the credential vars as
+        // (unset). It does its own source-attribution and never forwards a
+        // resolved token to the API, so skipping resolution here is safe.
+        Some(Commands::Doctor { .. }) => true,
         #[cfg(unix)]
         Some(Commands::Credentials { .. }) => true,
         _ => false,
@@ -137,6 +142,14 @@ async fn run(cli: Cli, credentials: CloudAppsCredentials) -> Result<(), AppError
     if let Commands::Completion { shell } = &command {
         print_completion(*shell);
         return Ok(());
+    }
+
+    // Handle doctor diagnostics. Runs before agent routing and the direct
+    // credential check because it does its own source-attribution against
+    // the environment, the credential store, and credentials.toml — it does
+    // not build an API client. Connectivity is probed by default.
+    if let Commands::Doctor { no_connectivity } = &command {
+        return cloudapps::commands::doctor::handle(!no_connectivity).await;
     }
 
     // Handle credentials subcommand (does not talk to the API).

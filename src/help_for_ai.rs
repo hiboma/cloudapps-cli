@@ -12,6 +12,8 @@ pub const COMPLETION_HELP: &str = "# completion\n\nGenerate shell completion scr
 
 pub const POLICIES_HELP: &str = include_str!("../docs/specifications/17-resources-policies.md");
 
+pub const DOCTOR_HELP: &str = "# doctor\n\nDiagnose configuration, credentials, environment, and connectivity.\n\nUsage:\n  cloudapps-cli doctor [--no-connectivity]\n\nReports:\n  CONFIG        credentials.toml search path and presence\n  CREDENTIALS   resolved source of api-url / api-token (value never printed)\n  AGENT         credential isolation agent session state (Unix)\n  ENVIRONMENT   which CLOUDAPPS_* / XDG_* variables are set (presence only)\n  CONNECTIVITY  HEAD request to the resolved api-url (skipped with --no-connectivity)\n\nThe API token value is never printed — only its presence and resolution source.\n";
+
 #[cfg(unix)]
 pub const CREDENTIALS_HELP: &str = include_str!("../docs/specifications/19-credentials-storage.md");
 
@@ -23,6 +25,7 @@ pub fn get_help(command: &Commands) -> &'static str {
         Commands::Files { .. } => FILES_HELP,
         Commands::DataEnrichment { .. } => DATA_ENRICHMENT_HELP,
         Commands::Policies { .. } => POLICIES_HELP,
+        Commands::Doctor { .. } => DOCTOR_HELP,
         #[cfg(unix)]
         Commands::Credentials { .. } => CREDENTIALS_HELP,
         #[cfg(unix)]

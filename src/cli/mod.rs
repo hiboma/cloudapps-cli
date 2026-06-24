@@ -31,7 +31,7 @@ pub enum CompletionShell {
     subcommand_required = false,
     arg_required_else_help = true,
     subcommand_help_heading = "Resources",
-    after_help = "System:\n  agent       Manage the credential isolation agent (Unix only)\n  completion  Generate shell completion script"
+    after_help = "System:\n  doctor      Diagnose configuration, credentials, environment, and connectivity\n  agent       Manage the credential isolation agent (Unix only)\n  completion  Generate shell completion script"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -142,6 +142,22 @@ pub enum Commands {
     },
 
     // -- System --
+    /// Diagnose configuration, credentials, environment, and connectivity
+    #[command(
+        long_about = "Print a diagnostic report of where configuration is resolved from, \
+                      whether the credential store is reachable, which CLOUDAPPS_* environment \
+                      variables are set, and whether the API endpoint responds.\n\
+                      \n\
+                      The API token value is never printed — only its presence and source. \
+                      Connectivity is checked by default (a HEAD request to the resolved api-url); \
+                      pass --no-connectivity to skip the network probe."
+    )]
+    Doctor {
+        /// Skip the network probe to the resolved api-url.
+        #[arg(long)]
+        no_connectivity: bool,
+    },
+
     /// Manage API token stored in the OS credential store (macOS Keychain)
     #[cfg(unix)]
     #[command(
@@ -185,6 +201,7 @@ impl Commands {
             Commands::Files { .. } => "files",
             Commands::DataEnrichment { .. } => "data-enrichment",
             Commands::Policies { .. } => "policies",
+            Commands::Doctor { .. } => "doctor",
             #[cfg(unix)]
             Commands::Credentials { .. } => "credentials",
             #[cfg(unix)]
