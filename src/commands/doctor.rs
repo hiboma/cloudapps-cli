@@ -234,7 +234,13 @@ async fn print_connectivity_section(api_url: Option<&str>) {
     };
 
     let target = url.trim_end_matches('/').to_string();
-    let client = match reqwest::Client::builder().build() {
+    // Bound the probe so an unreachable host fails fast with a `timeout`
+    // classification instead of stalling on the OS TCP timeout (tens of
+    // seconds). A diagnostic command must return quickly to be useful.
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+    {
         Ok(c) => c,
         Err(e) => {
             println!("  HEAD {}  →  error building HTTP client: {}", target, e);
