@@ -20,9 +20,23 @@ struct CredentialsFileRoot {
 }
 
 #[derive(Debug, Deserialize, Default)]
-struct CredentialsFile {
-    api_url: Option<String>,
-    api_token: Option<String>,
+pub(crate) struct CredentialsFile {
+    pub(crate) api_url: Option<String>,
+    pub(crate) api_token: Option<String>,
+}
+
+/// Where a resolved credential value came from. Used by `doctor` to report
+/// source attribution without re-deriving the resolution priority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CredentialSource {
+    /// `--api-url` passed explicitly on the command line.
+    CliFlag,
+    /// A `CLOUDAPPS_*` environment variable.
+    Env,
+    /// The OS credential store (macOS Keychain).
+    Keychain,
+    /// credentials.toml.
+    File,
 }
 
 /// Resolved CloudApps credentials collected from CLI args, environment variables,
@@ -49,7 +63,7 @@ impl std::fmt::Debug for CloudAppsCredentials {
 }
 
 /// Search paths for credentials.toml (highest priority first).
-fn credentials_search_paths() -> Vec<PathBuf> {
+pub(crate) fn credentials_search_paths() -> Vec<PathBuf> {
     let mut paths = vec![PathBuf::from(".cloudapps-credentials.toml")];
     if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
         paths.push(
@@ -70,13 +84,17 @@ fn credentials_search_paths() -> Vec<PathBuf> {
 
 /// Filter empty strings to None so that unfilled template values
 /// (e.g. `api_token = ""`) do not bypass validation.
-fn non_empty(s: Option<String>) -> Option<String> {
+pub(crate) fn non_empty(s: Option<String>) -> Option<String> {
     s.filter(|v| !v.is_empty())
 }
 
 /// Load credentials from the first credentials.toml found in the given search paths.
 /// Only the first file found is used; subsequent paths are not merged.
-fn load_credentials_from_paths(paths: &[PathBuf]) -> CredentialsFile {
+///
+/// A malformed file emits a `warning: failed to parse ...` to stderr. `doctor`
+/// reuses this loader (rather than re-parsing) precisely so its CONFIG report
+/// surfaces the same parse warning the real request path would.
+pub(crate) fn load_credentials_from_paths(paths: &[PathBuf]) -> CredentialsFile {
     for path in paths {
         let Ok(content) = std::fs::read_to_string(path) else {
             continue;
@@ -121,6 +139,51 @@ fn lookup_store_token(store: &dyn CredentialStore) -> Result<Option<String>, ()>
     }
 }
 
+/// Determine which source wins for `api_url`, given the explicit CLI flag
+/// value (already `non_empty`-filtered by the caller) and the loaded toml.
+///
+/// This mirrors the `api_url` precedence in `resolve_with_store`
+/// (CLI > env > toml) and exists so `doctor` reports the same winning
+/// source the resolver would actually use — instead of re-deriving the
+/// priority and risking drift.
+pub(crate) fn api_url_source(
+    cli_api_url: Option<&str>,
+    file: &CredentialsFile,
+) -> Option<(String, CredentialSource)> {
+    if let Some(v) = non_empty(cli_api_url.map(String::from)) {
+        Some((v, CredentialSource::CliFlag))
+    } else if let Some(v) = non_empty(std::env::var("CLOUDAPPS_API_URL").ok()) {
+        Some((v, CredentialSource::Env))
+    } else {
+        file.api_url.clone().map(|v| (v, CredentialSource::File))
+    }
+}
+
+/// Determine which source wins for `api_token`, given the raw credential
+/// store result and the loaded toml. Returns the source only (never the
+/// token value) so callers cannot accidentally print the secret.
+///
+/// Mirrors the `api_token` precedence in `resolve_with_store`
+/// (env > Keychain > toml), including the rule that a `Backend` store error
+/// refuses the toml fallback. `Ok(None)` means no source has a token.
+pub(crate) fn api_token_source(
+    store_result: &Result<Option<String>, StoreError>,
+    file: &CredentialsFile,
+) -> Result<Option<CredentialSource>, ()> {
+    if non_empty(std::env::var("CLOUDAPPS_API_TOKEN").ok()).is_some() {
+        return Ok(Some(CredentialSource::Env));
+    }
+    match store_result {
+        Ok(Some(_)) => Ok(Some(CredentialSource::Keychain)),
+        Ok(None) | Err(StoreError::Unavailable(_)) => {
+            Ok(file.api_token.as_ref().map(|_| CredentialSource::File))
+        }
+        // A Backend error refuses the toml fallback (see lookup_store_token),
+        // so no usable source exists.
+        Err(StoreError::Backend(_)) => Err(()),
+    }
+}
+
 impl CloudAppsCredentials {
     /// Resolve credentials from CLI args, environment variables, the OS
     /// credential store, and credentials.toml.
@@ -142,8 +205,14 @@ impl CloudAppsCredentials {
     ) -> Self {
         let file = load_credentials_from_paths(search_paths);
 
-        let api_url = cli_api_url
-            .map(String::from)
+        // Filter the CLI value through `non_empty` too, so `--api-url=`
+        // (empty) means "not provided" and falls through to env / toml,
+        // matching how the env branch already treats an empty variable.
+        // Without this, `--api-url=` would set `Some("")`, pass the
+        // `is_none()` validation, and reach the HTTP client as an empty
+        // base URL (an opaque "builder error") — while `doctor` correctly
+        // reported the env/toml source, leaving the two disagreeing.
+        let api_url = non_empty(cli_api_url.map(String::from))
             .or_else(|| non_empty(std::env::var("CLOUDAPPS_API_URL").ok()))
             .or(file.api_url);
 
@@ -729,5 +798,133 @@ api_token = "toml-token"
         .unwrap();
         let creds = CloudAppsCredentials::resolve_with_store(None, &UnavailableStore, &[toml_path]);
         assert_eq!(creds.api_token.as_deref(), Some("toml-token"));
+    }
+
+    // --- source attribution helpers (used by `doctor`) ---
+    //
+    // These guard against drift: the source helpers must agree with
+    // `resolve_with_store`'s precedence. If someone changes the resolution
+    // order in one place but not the other, these tests fail.
+
+    #[test]
+    fn api_url_source_cli_beats_env() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        unsafe {
+            std::env::set_var("CLOUDAPPS_API_URL", "https://env.example");
+        }
+        let file = CredentialsFile::default();
+        let got = api_url_source(Some("https://cli.example"), &file);
+        assert_eq!(
+            got,
+            Some(("https://cli.example".to_string(), CredentialSource::CliFlag))
+        );
+        unsafe { clear_cloudapps_env() };
+    }
+
+    #[test]
+    fn api_url_source_empty_cli_falls_through_to_env() {
+        // `--api-url=` (empty) must be treated as "not provided", matching
+        // resolve_with_store, which now filters the CLI value through
+        // non_empty. Otherwise doctor and the resolver would disagree.
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        unsafe {
+            std::env::set_var("CLOUDAPPS_API_URL", "https://env.example");
+        }
+        let file = CredentialsFile::default();
+        let got = api_url_source(Some(""), &file);
+        assert_eq!(
+            got,
+            Some(("https://env.example".to_string(), CredentialSource::Env))
+        );
+        unsafe { clear_cloudapps_env() };
+    }
+
+    #[test]
+    fn api_url_source_falls_through_to_file() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let file = CredentialsFile {
+            api_url: Some("https://file.example".to_string()),
+            api_token: None,
+        };
+        let got = api_url_source(None, &file);
+        assert_eq!(
+            got,
+            Some(("https://file.example".to_string(), CredentialSource::File))
+        );
+    }
+
+    #[test]
+    fn api_token_source_env_beats_store() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        unsafe {
+            std::env::set_var("CLOUDAPPS_API_TOKEN", "env-token");
+        }
+        let store_result: Result<Option<String>, StoreError> = Ok(Some("store".to_string()));
+        let file = CredentialsFile::default();
+        assert_eq!(
+            api_token_source(&store_result, &file),
+            Ok(Some(CredentialSource::Env))
+        );
+        unsafe { clear_cloudapps_env() };
+    }
+
+    #[test]
+    fn api_token_source_store_beats_file() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let store_result: Result<Option<String>, StoreError> = Ok(Some("store".to_string()));
+        let file = CredentialsFile {
+            api_url: None,
+            api_token: Some("file".to_string()),
+        };
+        assert_eq!(
+            api_token_source(&store_result, &file),
+            Ok(Some(CredentialSource::Keychain))
+        );
+    }
+
+    #[test]
+    fn api_token_source_unavailable_falls_through_to_file() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let store_result: Result<Option<String>, StoreError> =
+            Err(StoreError::Unavailable("no keychain".to_string()));
+        let file = CredentialsFile {
+            api_url: None,
+            api_token: Some("file".to_string()),
+        };
+        assert_eq!(
+            api_token_source(&store_result, &file),
+            Ok(Some(CredentialSource::File))
+        );
+    }
+
+    #[test]
+    fn api_token_source_backend_error_refuses_file() {
+        // Central invariant: a Backend store error must NOT attribute the
+        // token to the toml — the resolver refuses that fallback, so doctor
+        // must report it as unresolvable too.
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let store_result: Result<Option<String>, StoreError> =
+            Err(StoreError::Backend("access denied".to_string()));
+        let file = CredentialsFile {
+            api_url: None,
+            api_token: Some("file".to_string()),
+        };
+        assert_eq!(api_token_source(&store_result, &file), Err(()));
+    }
+
+    #[test]
+    fn api_token_source_none_when_nothing_set() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { clear_cloudapps_env() };
+        let store_result: Result<Option<String>, StoreError> = Ok(None);
+        let file = CredentialsFile::default();
+        assert_eq!(api_token_source(&store_result, &file), Ok(None));
     }
 }

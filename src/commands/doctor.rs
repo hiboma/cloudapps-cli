@@ -20,13 +20,26 @@
 //! shell. `main()` therefore routes `doctor` like `credentials`: it skips the
 //! pre-fork scrub.
 
-use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::config::credential_store::{
-    CredentialStore, KEY_API_TOKEN, KEYCHAIN_SERVICE, StoreError, default_store,
+    CredentialStore, KEY_API_TOKEN, KEYCHAIN_SERVICE, default_store,
+};
+use crate::config::{
+    CredentialSource, api_token_source, api_url_source, credentials_search_paths,
+    load_credentials_from_paths,
 };
 use crate::error::AppError;
+
+/// Human-readable label for a resolved credential source.
+fn source_label(source: CredentialSource) -> &'static str {
+    match source {
+        CredentialSource::CliFlag => "cli --api-url",
+        CredentialSource::Env => "env",
+        CredentialSource::Keychain => "keychain",
+        CredentialSource::File => "credentials.toml",
+    }
+}
 
 /// Environment variables that influence credential resolution and agent
 /// routing. Reported as `(set)` / `(unset)` only — never with their values.
@@ -81,20 +94,29 @@ pub async fn handle(check_connectivity: bool) -> Result<(), AppError> {
 /// CONFIG: where credentials.toml is looked for and whether it exists.
 fn print_config_section() {
     println!("CONFIG");
+    // Reuse the resolver's own search paths so CONFIG can never disagree
+    // with where credentials actually load from.
     let paths = credentials_search_paths();
-    let found = paths.iter().find(|p| p.exists());
-    match found {
+    match paths.iter().find(|p| p.exists()) {
         Some(path) => {
             println!("  credentials.toml:  {}", path.display());
             println!("  status:            present");
         }
         None => {
-            // Show the primary (user-level) path so the user knows where to
-            // create the file if they want one.
-            let primary = paths.last().or_else(|| paths.first());
-            match primary {
-                Some(path) => println!("  credentials.toml:  {} (not found)", path.display()),
-                None => println!("  credentials.toml:  (no search path)"),
+            // Print every candidate path rather than guessing a single
+            // "primary" one: the last entry is the user-level config only
+            // when HOME / XDG_CONFIG_HOME is set; otherwise the only path is
+            // the cwd-relative `.cloudapps-credentials.toml`, and labeling
+            // that "user-level" would mislead.
+            match paths.as_slice() {
+                [] => println!("  credentials.toml:  (no search path)"),
+                [single] => println!("  credentials.toml:  {} (not found)", single.display()),
+                many => {
+                    println!("  credentials.toml:  (not found; searched)");
+                    for p in many {
+                        println!("                     {}", p.display());
+                    }
+                }
             }
             println!("  status:            not found");
         }
@@ -110,56 +132,52 @@ fn print_credentials_section(
 ) -> Option<String> {
     println!("CREDENTIALS");
 
-    // -- api-url: CLI > env > credentials.toml --
-    let file = load_credentials_file();
-    let (url_value, url_source) = if let Some(v) = non_empty(cli_api_url.map(String::from)) {
-        (Some(v), "cli --api-url")
-    } else if let Some(v) = non_empty(std::env::var("CLOUDAPPS_API_URL").ok()) {
-        (Some(v), "env CLOUDAPPS_API_URL")
-    } else if let Some(v) = file.api_url.clone() {
-        (Some(v), "credentials.toml")
-    } else {
-        (None, "")
-    };
+    // Reuse the resolver's loader (it emits the same `warning: failed to
+    // parse ...` a real request would) and its source-attribution helpers,
+    // so doctor reports exactly the source the request path would use.
+    let file = load_credentials_from_paths(&credentials_search_paths());
 
-    match &url_value {
-        Some(v) => println!("  api-url:    {}  (source: {})", v, url_source),
+    // -- api-url: CLI > env > credentials.toml --
+    let resolved_url = api_url_source(cli_api_url, &file);
+    match &resolved_url {
+        Some((v, CredentialSource::Env)) => {
+            println!("  api-url:    {}  (source: env CLOUDAPPS_API_URL)", v)
+        }
+        Some((v, source)) => println!("  api-url:    {}  (source: {})", v, source_label(*source)),
         None => println!("  api-url:    (unset)"),
     }
 
     // -- api-token: env > Keychain > credentials.toml. Presence + source
-    //    only; the value is never printed. We deliberately classify the
-    //    source the same way the resolver does so `doctor` and the real
-    //    request path agree on which secret would be used. --
-    let token_env = non_empty(std::env::var("CLOUDAPPS_API_TOKEN").ok());
+    //    only; the value is never printed. The store is read exactly once
+    //    (a single Keychain authorization) and the result is reused for both
+    //    the source classification and the raw status line below. --
     let store_result = store.get(KEY_API_TOKEN);
-
-    if token_env.is_some() {
-        println!("  api-token:  set  (source: env CLOUDAPPS_API_TOKEN)");
-    } else {
-        match &store_result {
-            Ok(Some(_)) => println!(
-                "  api-token:  stored  (source: keychain {}/{})",
+    match api_token_source(&store_result, &file) {
+        Ok(Some(CredentialSource::Env)) => {
+            println!("  api-token:  set  (source: env CLOUDAPPS_API_TOKEN)")
+        }
+        Ok(Some(CredentialSource::Keychain)) => println!(
+            "  api-token:  stored  (source: keychain {}/{})",
+            KEYCHAIN_SERVICE, KEY_API_TOKEN
+        ),
+        Ok(Some(CredentialSource::File)) => {
+            println!("  api-token:  set  (source: credentials.toml)")
+        }
+        Ok(Some(CredentialSource::CliFlag)) => {
+            // No CLI flag carries the token; unreachable, but keep the match
+            // exhaustive without an unlabeled catch-all.
+            println!("  api-token:  set")
+        }
+        Ok(None) => println!("  api-token:  (unset)"),
+        Err(()) => {
+            // A Backend store error refuses the toml fallback (see
+            // config::lookup_store_token). Surface it so the user understands
+            // why a token in credentials.toml is not being picked up; the raw
+            // keychain line below carries the underlying error message.
+            println!(
+                "  api-token:  UNRESOLVABLE  (keychain {}/{} access failed)",
                 KEYCHAIN_SERVICE, KEY_API_TOKEN
-            ),
-            Ok(None) if file.api_token.is_some() => {
-                println!("  api-token:  set  (source: credentials.toml)")
-            }
-            Ok(None) => println!("  api-token:  (unset)"),
-            Err(StoreError::Unavailable(_)) if file.api_token.is_some() => {
-                println!("  api-token:  set  (source: credentials.toml)")
-            }
-            Err(StoreError::Unavailable(_)) => println!("  api-token:  (unset)"),
-            Err(StoreError::Backend(msg)) => {
-                // A Backend error means the resolver would REFUSE to fall back
-                // to the toml (see config::lookup_store_token). Surface that
-                // so the user understands why a token in credentials.toml is
-                // not being picked up.
-                println!(
-                    "  api-token:  UNRESOLVABLE  (keychain {}/{}: {})",
-                    KEYCHAIN_SERVICE, KEY_API_TOKEN, msg
-                );
-            }
+            );
         }
     }
 
@@ -180,7 +198,7 @@ fn print_credentials_section(
         ),
     }
 
-    url_value
+    resolved_url.map(|(v, _)| v)
 }
 
 /// AGENT: the credential isolation agent session state (Unix only).
@@ -292,13 +310,6 @@ fn classify_reqwest_err(e: &reqwest::Error) -> &'static str {
     }
 }
 
-// --- Helpers duplicated from config:: (kept private there) -------------------
-
-/// Filter empty strings to None. Mirrors `config::non_empty`.
-fn non_empty(s: Option<String>) -> Option<String> {
-    s.filter(|v| !v.is_empty())
-}
-
 /// Extract an explicit `--api-url` value from the raw process arguments.
 ///
 /// We cannot use the clap-parsed value because the `--api-url` arg declares
@@ -325,91 +336,9 @@ fn arg_value<I: Iterator<Item = String>>(args: I, flag: &str) -> Option<String> 
     None
 }
 
-/// credentials.toml search paths. Mirrors `config::credentials_search_paths`.
-fn credentials_search_paths() -> Vec<PathBuf> {
-    let mut paths = vec![PathBuf::from(".cloudapps-credentials.toml")];
-    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
-        paths.push(
-            PathBuf::from(config_home)
-                .join("cloudapps-cli")
-                .join("credentials.toml"),
-        );
-    } else if let Ok(home) = std::env::var("HOME") {
-        paths.push(
-            PathBuf::from(home)
-                .join(".config")
-                .join("cloudapps-cli")
-                .join("credentials.toml"),
-        );
-    }
-    paths
-}
-
-/// A minimal mirror of the `[credentials]` table for source attribution.
-/// `doctor` only needs presence + the api_url value (never the token value),
-/// so it parses the file independently rather than reusing the private
-/// loader in `config`.
-struct FileCredentials {
-    api_url: Option<String>,
-    api_token: Option<String>,
-}
-
-/// Load the first credentials.toml found, returning presence of each field.
-fn load_credentials_file() -> FileCredentials {
-    #[derive(serde::Deserialize, Default)]
-    struct Root {
-        #[serde(default)]
-        credentials: Section,
-    }
-    #[derive(serde::Deserialize, Default)]
-    struct Section {
-        api_url: Option<String>,
-        api_token: Option<String>,
-    }
-
-    for path in credentials_search_paths() {
-        let Ok(content) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        if let Ok(root) = toml::from_str::<Root>(&content) {
-            return FileCredentials {
-                api_url: non_empty(root.credentials.api_url),
-                api_token: non_empty(root.credentials.api_token),
-            };
-        }
-    }
-    FileCredentials {
-        api_url: None,
-        api_token: None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn classify_reqwest_err_returns_static_labels() {
-        // We can't easily synthesize each reqwest::Error variant, but we can
-        // assert the catch-all branch is value-free (no URL, no token).
-        // Build a client error via an invalid request to exercise the path.
-        // This is best-effort; the important guarantee is the &'static str
-        // return type, which forbids interpolating dynamic content.
-        let _ = classify_reqwest_err;
-    }
-
-    #[test]
-    fn non_empty_filters_blank() {
-        assert_eq!(non_empty(Some(String::new())), None);
-        assert_eq!(non_empty(Some(" ".to_string())), Some(" ".to_string()));
-        assert_eq!(non_empty(None), None);
-    }
-
-    #[test]
-    fn search_paths_start_with_cwd_file() {
-        let paths = credentials_search_paths();
-        assert_eq!(paths[0], PathBuf::from(".cloudapps-credentials.toml"));
-    }
 
     fn argv(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| s.to_string()).collect()
@@ -444,5 +373,18 @@ mod tests {
     fn arg_value_flag_without_value_returns_none() {
         let args = argv(&["doctor", "--api-url"]);
         assert_eq!(arg_value(args.into_iter(), "--api-url"), None);
+    }
+
+    #[test]
+    fn arg_value_equals_empty_is_some_empty() {
+        // `--api-url=` yields Some("") from argv. `api_url_source` then runs
+        // it through `non_empty`, so the CREDENTIALS section falls through to
+        // env / toml rather than attributing an empty CLI flag — matching the
+        // resolver, which now also filters the CLI value through `non_empty`.
+        let args = argv(&["doctor", "--api-url="]);
+        assert_eq!(
+            arg_value(args.into_iter(), "--api-url").as_deref(),
+            Some("")
+        );
     }
 }

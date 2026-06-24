@@ -18,6 +18,7 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -119,4 +120,47 @@ fn doctor_help_mentions_connectivity_flag() {
         .assert()
         .success()
         .stdout(predicate::str::contains("--no-connectivity"));
+}
+
+#[test]
+fn doctor_warns_on_malformed_credentials_toml() {
+    // doctor reuses the resolver's loader, so a broken credentials.toml must
+    // surface the same `warning: failed to parse ...` the real request path
+    // emits — otherwise a user debugging "my token isn't picked up" gets a
+    // diagnostic that is quieter than the command it is meant to explain.
+    let home = TempDir::new().unwrap();
+    let cfg_dir = home.path().join(".config").join("cloudapps-cli");
+    fs::create_dir_all(&cfg_dir).unwrap();
+    fs::write(
+        cfg_dir.join("credentials.toml"),
+        "this is not valid toml {{{{",
+    )
+    .unwrap();
+
+    cli_cmd(home.path())
+        .args(["doctor", "--no-connectivity"])
+        .assert()
+        .success()
+        // CONFIG still reports the file as present...
+        .stdout(predicate::str::contains("status:            present"))
+        // ...but the parse failure is announced on stderr, just like a real
+        // request would.
+        .stderr(predicate::str::contains("warning: failed to parse"));
+}
+
+#[test]
+fn doctor_empty_api_url_flag_falls_through_to_env() {
+    // `--api-url=` (empty) must be treated as "not provided" and fall through
+    // to CLOUDAPPS_API_URL, matching the resolver. Attributing it to the CLI
+    // flag (or showing an empty url) would disagree with what a real request
+    // actually uses.
+    let home = TempDir::new().unwrap();
+    cli_cmd(home.path())
+        .env("CLOUDAPPS_API_URL", "https://env.example")
+        .args(["doctor", "--no-connectivity", "--api-url="])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "api-url:    https://env.example  (source: env CLOUDAPPS_API_URL)",
+        ));
 }
