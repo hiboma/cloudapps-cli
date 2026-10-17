@@ -43,7 +43,7 @@ pub enum CredentialSource {
 /// the OS credential store (macOS Keychain), and credentials.toml.
 ///
 /// Once constructed, the process should unset the CLOUDAPPS_* environment
-/// variables so that forked child processes (agent) do not inherit credentials
+/// variables so that child processes do not inherit credentials
 /// via the environment.
 #[derive(Clone, Default)]
 pub struct CloudAppsCredentials {
@@ -248,26 +248,6 @@ impl CloudAppsCredentials {
         Self::resolve_with_store(cli_api_url, &store, search_paths)
     }
 
-    /// Validate that required credentials are present for API access.
-    pub fn validate(&self) -> Result<(), String> {
-        let mut missing = Vec::new();
-        if self.api_url.is_none() {
-            missing.push("CLOUDAPPS_API_URL");
-        }
-        if self.api_token.is_none() {
-            missing.push("CLOUDAPPS_API_TOKEN");
-        }
-
-        if missing.is_empty() {
-            Ok(())
-        } else {
-            Err(format!(
-                "missing required credentials: {}. Set via environment variables, CLI options, credentials.toml, or `cloudapps-cli credentials set api-token`.",
-                missing.join(", ")
-            ))
-        }
-    }
-
     /// Remove CloudApps credential environment variables from the current process.
     ///
     /// On Unix, first overwrites the values in-place (via the C `environ`
@@ -371,34 +351,6 @@ mod tests {
         // None if nothing is set
         let result = resolve_value(None, "NONEXISTENT_VAR_12345");
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_credentials_validate_both_present() {
-        let creds = CloudAppsCredentials {
-            api_url: Some("https://example.com".to_string()),
-            api_token: Some("token".to_string()),
-        };
-        assert!(creds.validate().is_ok());
-    }
-
-    #[test]
-    fn test_credentials_validate_missing_all() {
-        let creds = CloudAppsCredentials::default();
-        let err = creds.validate().unwrap_err();
-        assert!(err.contains("CLOUDAPPS_API_URL"));
-        assert!(err.contains("CLOUDAPPS_API_TOKEN"));
-    }
-
-    #[test]
-    fn test_credentials_validate_partial_missing() {
-        let creds = CloudAppsCredentials {
-            api_url: Some("https://example.com".to_string()),
-            api_token: None,
-        };
-        let err = creds.validate().unwrap_err();
-        assert!(!err.contains("CLOUDAPPS_API_URL"));
-        assert!(err.contains("CLOUDAPPS_API_TOKEN"));
     }
 
     #[test]

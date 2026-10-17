@@ -30,9 +30,7 @@ fn cli_cmd(home: &Path) -> Command {
         .env("XDG_CONFIG_HOME", home.join(".config"))
         .env_remove("CLOUDAPPS_API_URL")
         .env_remove("CLOUDAPPS_API_TOKEN")
-        .env_remove("CLOUDAPPS_OUTPUT_FORMAT")
-        .env_remove("CLOUDAPPS_AGENT_TOKEN")
-        .env_remove("CLOUDAPPS_AGENT_SOCKET");
+        .env_remove("CLOUDAPPS_OUTPUT_FORMAT");
     cmd
 }
 

@@ -36,15 +36,6 @@ Detailed specifications are in `docs/specifications/`. See `docs/specifications/
 - `credentials get` は意図的に非実装 (shell history 漏洩防止)
 - ADR: `docs/adr/0005-keychain-backed-api-token.md`
 
-## Agent Mode
-
-- `cloudapps-cli agent start` resolves credentials into `CloudAppsCredentials` struct, clears env vars, then forks
-- Session info written to `~/.local/share/cloudapps-cli/session.json` for cross-terminal auto-detection
-- Signal-only shutdown (no session leader monitoring, no idle timeout)
-- Duplicate start is detected via session.json before fork ("already started")
-- `--no-agent` flag forces direct API mode, skipping agent auto-detection
-- Priority: `--no-agent` > `CLOUDAPPS_AGENT_TOKEN` env > session.json > direct mode
-
 ## Build and Test
 
 ```bash
