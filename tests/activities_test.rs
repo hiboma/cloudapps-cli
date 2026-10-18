@@ -101,7 +101,7 @@ async fn test_activities_list_with_filter() {
         .await
         .unwrap();
 
-    assert!(resp["data"].as_array().unwrap().len() > 0);
+    assert!(!resp["data"].as_array().unwrap().is_empty());
 
     mock.assert_async().await;
 }
