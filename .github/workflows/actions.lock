@@ -4,72 +4,72 @@
 version: 'v0.0.3'
 workflows:
     '.github/workflows/actionlint.yml':
-        - 'actions/checkout@v6.0.3'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
     '.github/workflows/actions-lock.yml':
-        - 'actions/checkout@v6.0.3'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
     '.github/workflows/cargo-deny.yml':
-        - 'actions/checkout@v6.0.3'
-        - 'dtolnay/rust-toolchain@v1'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
+        - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
     '.github/workflows/ci.yml':
-        - 'actions/checkout@v6.0.3'
-        - 'dtolnay/rust-toolchain@v1'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
+        - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
     '.github/workflows/fuzz.yml':
-        - 'actions/checkout@v6.0.3'
-        - 'dtolnay/rust-toolchain@v1'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
+        - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
     '.github/workflows/pinact.yml':
-        - 'actions/checkout@v6.0.3'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
     '.github/workflows/release.yml':
-        - 'actions/checkout@v6.0.3'
-        - 'actions/download-artifact@v8.0.1'
-        - 'actions/upload-artifact@v7.0.1'
-        - 'anchore/sbom-action@v0.24.0'
-        - 'dtolnay/rust-toolchain@v1'
-        - 'softprops/action-gh-release@v3.0.0'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
+        - 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c'
+        - 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
+        - 'anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610'
+        - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
+        - 'softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda'
     '.github/workflows/scorecard.yml':
-        - 'actions/checkout@v6.0.3'
-        - 'github/codeql-action@v4.36.2'
-        - 'ossf/scorecard-action@v2.4.3'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
+        - 'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
+        - 'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a'
     '.github/workflows/zizmor.yml':
-        - 'actions/checkout@v6.0.3'
-        - 'dtolnay/rust-toolchain@v1'
-        - 'github/codeql-action@v4.36.2'
+        - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
+        - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
+        - 'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
 dependencies:
-    'actions/checkout@v6.0.3':
+    'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10':
         ref: 'v6.0.3'
         commit: 'sha1-df4cb1c069e1874edd31b4311f1884172cec0e10'
         owner_id: 44036562
         repo_id: 197814629
-    'actions/download-artifact@v8.0.1':
+    'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c':
         ref: 'v8.0.1'
         commit: 'sha1-3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c'
         owner_id: 44036562
         repo_id: 192626254
-    'actions/upload-artifact@v7.0.1':
+    'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a':
         ref: 'v7.0.1'
         commit: 'sha1-043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
         owner_id: 44036562
         repo_id: 192625955
-    'anchore/sbom-action@v0.24.0':
+    'anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610':
         ref: 'v0.24.0'
         commit: 'sha1-e22c389904149dbc22b58101806040fa8d37a610'
         owner_id: 16208487
         repo_id: 399925381
-    'dtolnay/rust-toolchain@v1':
+    'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8':
         ref: 'v1'
         commit: 'sha1-683b588c487a69d01f6c6ddf40f036ff682cc2c8'
         owner_id: 1940490
         repo_id: 260749683
-    'github/codeql-action@v4.36.2':
+    'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e':
         ref: 'v4.36.2'
         commit: 'sha1-8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
         owner_id: 9919
         repo_id: 259445878
-    'ossf/scorecard-action@v2.4.3':
+    'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a':
         ref: 'v2.4.3'
         commit: 'sha1-4eaacf0543bb3f2c246792bd56e8cdeffafb205a'
         owner_id: 67707773
         repo_id: 421101922
-    'softprops/action-gh-release@v3.0.0':
+    'softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda':
         ref: 'v3.0.0'
         commit: 'sha1-b4309332981a82ec1c5618f44dd2e27cc8bfbfda'
         owner_id: 2242
