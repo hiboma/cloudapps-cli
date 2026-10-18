@@ -24,7 +24,7 @@ jobs:
       PINACT_VERSION: 3.9.0
       PINACT_SHA256: 3829da718de38b1e914b974c3e77045a256999af84789437a7305b09130d8a6a
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
