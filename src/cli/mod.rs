@@ -1,6 +1,4 @@
 pub mod activities;
-#[cfg(unix)]
-pub mod agent;
 pub mod alerts;
 #[cfg(unix)]
 pub mod credentials;
@@ -31,7 +29,7 @@ pub enum CompletionShell {
     subcommand_required = false,
     arg_required_else_help = true,
     subcommand_help_heading = "Resources",
-    after_help = "System:\n  doctor      Diagnose configuration, credentials, environment, and connectivity\n  agent       Manage the credential isolation agent (Unix only)\n  completion  Generate shell completion script"
+    after_help = "System:\n  doctor      Diagnose configuration, credentials, environment, and connectivity\n  completion  Generate shell completion script"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -62,18 +60,6 @@ pub struct Cli {
     /// Show AI-friendly help (specification markdown) for the specified resource
     #[arg(long, global = true)]
     pub help_for_ai: bool,
-
-    /// Agent socket path (hidden, set by agent start)
-    #[arg(long, env = "CLOUDAPPS_AGENT_SOCKET", global = true, hide = true)]
-    pub socket: Option<String>,
-
-    /// Agent session token (hidden, set by agent start)
-    #[arg(long, env = "CLOUDAPPS_AGENT_TOKEN", global = true, hide = true)]
-    pub token: Option<String>,
-
-    /// Skip agent auto-detection and use direct API mode
-    #[arg(long, global = true, hide = true)]
-    pub no_agent: bool,
 }
 
 #[derive(Subcommand)]
@@ -175,14 +161,6 @@ pub enum Commands {
         command: credentials::CredentialsCommand,
     },
 
-    /// Manage the credential isolation agent (Unix only)
-    #[cfg(unix)]
-    #[command(subcommand_required = true, arg_required_else_help = true, hide = true)]
-    Agent {
-        #[command(subcommand)]
-        command: agent::AgentCommand,
-    },
-
     /// Generate shell completion script
     #[command(hide = true)]
     Completion {
@@ -204,8 +182,6 @@ impl Commands {
             Commands::Doctor { .. } => "doctor",
             #[cfg(unix)]
             Commands::Credentials { .. } => "credentials",
-            #[cfg(unix)]
-            Commands::Agent { .. } => "agent",
             Commands::Completion { .. } => "completion",
         }
     }
