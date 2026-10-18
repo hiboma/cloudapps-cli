@@ -22,17 +22,17 @@ workflows:
         - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
         - 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c'
         - 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
-        - 'anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610'
+        - 'anchore/sbom-action@aa80c8c5bd439a416a62804f2151ab38c671a638'
         - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
         - 'softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228'
     '.github/workflows/scorecard.yml':
         - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
-        - 'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
-        - 'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a'
+        - 'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938'
+        - 'ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc'
     '.github/workflows/zizmor.yml':
         - 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10'
         - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
-        - 'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
+        - 'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938'
 dependencies:
     'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10':
         ref: 'v6.0.3'
@@ -49,9 +49,9 @@ dependencies:
         commit: 'sha1-043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
         owner_id: 44036562
         repo_id: 192625955
-    'anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610':
-        ref: 'v0.24.0'
-        commit: 'sha1-e22c389904149dbc22b58101806040fa8d37a610'
+    'anchore/sbom-action@aa80c8c5bd439a416a62804f2151ab38c671a638':
+        ref: 'v0.24.1'
+        commit: 'sha1-aa80c8c5bd439a416a62804f2151ab38c671a638'
         owner_id: 16208487
         repo_id: 399925381
     'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8':
@@ -59,14 +59,14 @@ dependencies:
         commit: 'sha1-683b588c487a69d01f6c6ddf40f036ff682cc2c8'
         owner_id: 1940490
         repo_id: 260749683
-    'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e':
-        ref: 'v4.36.2'
-        commit: 'sha1-8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
+    'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938':
+        ref: 'v4.37.9'
+        commit: 'sha1-cdf488f595d80d6e07e03d4674febd5ab45fa938'
         owner_id: 9919
         repo_id: 259445878
-    'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a':
-        ref: 'v2.4.3'
-        commit: 'sha1-4eaacf0543bb3f2c246792bd56e8cdeffafb205a'
+    'ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc':
+        ref: 'v2.4.4'
+        commit: 'sha1-2d1146689b8cda280b9bc96326124645441f03bc'
         owner_id: 67707773
         repo_id: 421101922
     'softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228':
