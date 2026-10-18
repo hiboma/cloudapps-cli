@@ -1,13 +1,10 @@
 #![allow(dead_code)]
 
-#[cfg(unix)]
-pub mod agent;
 pub mod auth;
 pub mod cli;
 pub mod client;
 pub mod commands;
 pub mod config;
-pub mod dispatch;
 pub mod error;
 pub mod help_for_ai;
 pub mod models;
