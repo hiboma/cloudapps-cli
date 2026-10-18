@@ -13,12 +13,6 @@
 //!   their values, so a token passed via `CLOUDAPPS_API_TOKEN` does not leak
 //!   into terminal scrollback or an AI-agent transcript.
 //!
-//! Unlike the rest of the CLI, `doctor` must run BEFORE the `CLOUDAPPS_*`
-//! environment scrub in `main()` — otherwise the ENVIRONMENT section would
-//! always report `CLOUDAPPS_API_URL` / `CLOUDAPPS_API_TOKEN` as `(unset)`,
-//! which is exactly the opposite of useful for diagnosing a misconfigured
-//! shell. `main()` therefore routes `doctor` like `credentials`: it skips the
-//! pre-fork scrub.
 
 use std::time::Instant;
 
@@ -41,16 +35,13 @@ fn source_label(source: CredentialSource) -> &'static str {
     }
 }
 
-/// Environment variables that influence credential resolution and agent
-/// routing. Reported as `(set)` / `(unset)` only — never with their values.
+/// Environment variables that influence configuration and credential
+/// resolution. Reported as `(set)` / `(unset)` only — never with their values.
 const ENV_VARS: &[&str] = &[
     "CLOUDAPPS_API_URL",
     "CLOUDAPPS_API_TOKEN",
     "CLOUDAPPS_OUTPUT_FORMAT",
-    "CLOUDAPPS_AGENT_SOCKET",
-    "CLOUDAPPS_AGENT_TOKEN",
     "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
     "HOME",
 ];
 
@@ -74,12 +65,6 @@ pub async fn handle(check_connectivity: bool) -> Result<(), AppError> {
     let store = default_store();
     let resolved_url = print_credentials_section(cli_api_url.as_deref(), &*store);
     println!();
-
-    #[cfg(unix)]
-    {
-        print_agent_section();
-        println!();
-    }
 
     print_environment_section();
 
@@ -199,33 +184,6 @@ fn print_credentials_section(
     }
 
     resolved_url.map(|(v, _)| v)
-}
-
-/// AGENT: the credential isolation agent session state (Unix only).
-#[cfg(unix)]
-fn print_agent_section() {
-    use crate::agent::session;
-
-    println!("AGENT");
-    let session_path = session::session_file_path();
-    println!("  session-file:  {}", session_path.display());
-
-    match session::read_session() {
-        Some(info) => {
-            if session::is_session_alive(&info) {
-                println!(
-                    "  status:        running (pid {}, socket {})",
-                    info.pid, info.socket_path
-                );
-            } else {
-                println!(
-                    "  status:        stale (session file present, socket {} missing)",
-                    info.socket_path
-                );
-            }
-        }
-        None => println!("  status:        not running"),
-    }
 }
 
 /// ENVIRONMENT: which influential environment variables are set. Values are
