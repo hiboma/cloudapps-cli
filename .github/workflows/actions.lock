@@ -22,7 +22,7 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c'
         - 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
-        - 'anchore/sbom-action@aa80c8c5bd439a416a62804f2151ab38c671a638'
+        - 'anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c'
         - 'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8'
         - 'softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228'
     '.github/workflows/scorecard.yml':
@@ -54,9 +54,9 @@ dependencies:
         commit: 'sha1-043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
         owner_id: 44036562
         repo_id: 192625955
-    'anchore/sbom-action@aa80c8c5bd439a416a62804f2151ab38c671a638':
-        ref: 'v0.24.1'
-        commit: 'sha1-aa80c8c5bd439a416a62804f2151ab38c671a638'
+    'anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c':
+        ref: 'v0.24.3'
+        commit: 'sha1-66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c'
         owner_id: 16208487
         repo_id: 399925381
     'dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8':
